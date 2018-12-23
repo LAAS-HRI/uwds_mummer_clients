@@ -1,0 +1,7 @@
+<library path="lib/libuwds_mummer_clients">
+  <class name="uwds_mummer_clients/GazesProvider"
+         type="uwds_mummer_clients::GazesProvider"
+         base_class_type="nodelet::Nodelet">
+    <description>This is a simple human gaze provider based on perception_msgs from mummer projects</description>
+  </class>
+</library>
