@@ -39,6 +39,8 @@ namespace uwds_mummer_clients
 
       std::string global_frame_id_;
 
+      std::string output_world_;
+
       int nb_min_detection_;
 
       std::map<int, int> nb_detection_;

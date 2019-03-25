@@ -42,7 +42,6 @@ namespace uwds_mummer_clients
     pnh_->param<std::string>("output_world", output_world_, "faces");
     pnh_->param<std::string>("global_frame_id", global_frame_id_, "map");
     input_subscriber_ = pnh_->subscribe("input", 1, &GazesProvider::callback, this);
-    connection_status_ = CONNECTED;
   }
 
   void GazesProvider::callback(const perception_msgs::GazeInfoArrayPtr& msg)
@@ -137,7 +136,7 @@ namespace uwds_mummer_clients
           }
         }
       }
-      sendWorldChanges(output_world_, msg->header, changes);
+      ctx_->worlds()[output_world_].update(msg->header, changes);
     }
   }
 }
