@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="output" default="screen"/>
+  <arg name="respawn" default="false"/>
+  <arg name="start_manager" default="true"/>
+  <arg name="start_server" default="false"/>
+  <arg name="nodelet_manager" default="mummer_nodelet_manager"/>
+  <arg name="launch-prefix" default=""/>
+
+  <include file="$(find uwds_mummer_clients)/launch/fake_localization.launch"/>
+  <include file="$(find uwds_mummer_clients)/launch/pepper_utils.launch"/>
+
+  <include file="$(find uwds_mummer_clients)/launch/ideapark_provider.launch"/>
+
+  <!--<include file="$(find uwds_mummer_clients)/launch/multimodal_human_provider.launch"/>-->
+
+  <include file="$(find uwds_mummer_clients)/launch/mummer_merger.launch"/>
+
+
+</launch>

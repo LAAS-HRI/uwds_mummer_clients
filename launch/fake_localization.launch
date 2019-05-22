@@ -1,0 +1,14 @@
+<launch>
+  <node pkg="fake_localization" type="fake_localization" name="fake_localization">
+    <rosparam subst_value="true">
+         odom_frame_id: odom
+         base_frame_id: base_link
+         global_frame_id: map
+         delta_x: -29.306
+         delta_y: -9.158
+         delta_yaw: 0.0
+         transform_tolerance: 0.1
+       </rosparam>
+    <remap from="base_pose_ground_truth" to="/naoqi_driver_node/odom"/>
+  </node>
+</launch>

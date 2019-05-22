@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="output" default="screen"/>
+  <arg name="respawn" default="false"/>
+  <arg name="start_manager" default="true"/>
+  <arg name="start_server" default="false"/>
+  <arg name="nodelet_manager" default="mummer_nodelet_manager"/>
+  <arg name="launch-prefix" default=""/>
+
+  <include file="$(find uwds)/launch/world_merger.launch">
+    <arg name="default_inputs" default="robot/env robot/humans"/>
+  </include>
+
+</launch>
