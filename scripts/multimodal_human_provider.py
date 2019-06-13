@@ -127,6 +127,19 @@ class MultiModalHumanProvider(UwdsClient):
                 position = translation_from_matrix(transform)
                 quaternion = quaternion_from_matrix(transform)
 
+                if self.ctx.worlds()[self.world].scene().nodes().has(str(person.person_id)):
+                    try :
+                        delta_x = self.persons[str(person.person_id)].position.pose.position.x - position[0]
+                        delta_y = self.persons[str(person.person_id)].position.pose.position.y - position[1]
+                        delta_z = self.persons[str(person.person_id)].position.pose.position.z - position[2]
+                        delta_t = person_msg.header.stamp - self.persons[str(person.person_id)].last_observation.data
+
+                        self.persons[str(person.person_id)].velocity.position.x = delta_x / delta_t
+                        self.persons[str(person.person_id)].velocity.position.y = delta_y / delta_t
+                        self.persons[str(person.person_id)].velocity.position.z = delta_z / delta_t
+                    except:
+                        continue
+
                 self.persons[str(person.person_id)].position.pose.position.x = position[0]
                 self.persons[str(person.person_id)].position.pose.position.y = position[1]
                 self.persons[str(person.person_id)].position.pose.position.z = position[2]
@@ -136,7 +149,10 @@ class MultiModalHumanProvider(UwdsClient):
                 self.persons[str(person.person_id)].position.pose.orientation.z = quaternion[2]
                 self.persons[str(person.person_id)].position.pose.orientation.w = quaternion[3]
 
+                self.persons[str(person.person_id)].last_observation.data = person_msg.header.stamp
+
                 changes.nodes_to_update.append(self.persons[str(person.person_id)])
+
                 min_id = person.person_id
                 for id in person.alternate_ids:
                     if id < min_id:
@@ -188,6 +204,33 @@ class MultiModalHumanProvider(UwdsClient):
                 voice_attention_point.header.frame_id = str(min_id)
                 voice_attention_point.point = Point(0, 0, 0)
 
+
+        for id in currently_perceived_ids:
+            if id not in self.previously_perceived_ids:
+                # start fact
+                print("start: "+"human-"+id+" is perceived")
+                fact = Situation(description="human-"+id+" is perceived", type=FACT, id=str(uuid.uuid4().hex))
+                subject_property = Property(name="subject", data=id)
+                predicate_property = Property(name="predicate", data="isPerceived")
+                fact.start.data = now
+                fact.end.data = rospy.Time(0)
+                fact.properties.append(subject_property)
+                fact.properties.append(predicate_property)
+                self.predicates_map[id+"isPerceived"] = fact.id
+                changes.situations_to_update.append(fact)
+
+        for id in self.previously_perceived_ids:
+            if id not in currently_perceived_ids:
+                # stop fact
+                if id+"isPerceived" in self.predicates_map:
+                    if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isPerceived"]):
+                        print("stop: "+"human-"+id+" is perceived")
+                        fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isPerceived"]]
+                        fact.end.data = now
+                        fact.description = fact.description.replace("is","was")
+                        changes.situations_to_update.append(fact)
+                        del self.predicates_map[id+"isPerceived"]
+
         for id in currently_near_ids:
             if id not in self.previously_near_ids:
                 # start fact
@@ -232,8 +275,8 @@ class MultiModalHumanProvider(UwdsClient):
             if id not in currently_perceived_ids or id not in currently_close_ids:
                 # stop fact
                 if id+"isClose" in self.predicates_map:
-                    print("end: "+"human"+id+" is close")
                     if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isClose"]):
+                        print("end: "+"human"+id+" is close")
                         fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isClose"]]
                         fact.end.data = now
                         fact.description = fact.description.replace("is","was")
@@ -259,40 +302,14 @@ class MultiModalHumanProvider(UwdsClient):
             if id not in currently_perceived_ids or id not in currently_speaking_ids:
                 # stop fact
                 if id+"isSpeaking" in self.predicates_map:
-                    print("stop: "+"human-"+id+" is speaking")
                     if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isSpeaking"]):
+                        print("stop: "+"human-"+id+" is speaking")
                         fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isSpeaking"]]
                         fact.end.data = now
                         fact.description = fact.description.replace("is","was")
                         changes.situations_to_update.append(fact)
                         self.last_speaking_id = fact.id
                         del self.predicates_map[id+"isSpeaking"]
-
-        for id in currently_perceived_ids:
-            if id not in self.previously_perceived_ids:
-                # start fact
-                print("start: "+"human-"+id+" is perceived")
-                fact = Situation(description="human-"+id+" is perceived", type=FACT, id=str(uuid.uuid4().hex))
-                subject_property = Property(name="subject", data=id)
-                predicate_property = Property(name="predicate", data="isPerceived")
-                fact.start.data = now
-                fact.end.data = rospy.Time(0)
-                fact.properties.append(subject_property)
-                fact.properties.append(predicate_property)
-                self.predicates_map[id+"isPerceived"] = fact.id
-                changes.situations_to_update.append(fact)
-
-        for id in self.previously_perceived_ids:
-            if id not in currently_perceived_ids:
-                # stop fact
-                if id+"isPerceived" in self.predicates_map:
-                    print("stop: "+"human-"+id+" is perceived")
-                    if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isPerceived"]):
-                        fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isPerceived"]]
-                        fact.end.data = now
-                        fact.description = fact.description.replace("is","was")
-                        changes.situations_to_update.append(fact)
-                        del self.predicates_map[id+"isPerceived"]
 
         for subject_id in currently_looking_at.keys():
             object_id = currently_looking_at[subject_id]
@@ -390,32 +407,33 @@ class MultiModalHumanProvider(UwdsClient):
 
         ids_overrided = []
         #print("local timeline size : "+str(len(self.ctx.worlds()[self.world].timeline().situations())))
-        for situation in self.ctx.worlds()[self.world].timeline().situations():
-            updated = False
-            deleted = False
-            if rospy.Time().now().to_secs() - situation.end.data.to_secs() > 300.0:
-                deleted = True
-            else:
-                for property in situation.properties:
-                    if property.name == "subject" or property.name == "object":
-                        if property.data in self.alternate_id_map:
-                            if self.alternate_id_map[property.data] != property.data:
-                                updated = True
-                                situation.description.replace("human-"+property.data, "human-"+self.alternate_id_map[property.data])
-                                property.data = self.alternate_id_map[property.data]
-                                ids_overrided.append(property.data)
-            if updated is True and deleted is False:
-                subject = self.ctx.worlds()[self.world].timeline().situations().get_situation_property(situation.id, "subject")
-                object = self.ctx.worlds()[self.world].timeline().situations().get_situation_property(situation.id, "object")
-                changes.situations_to_update.append(situation)
-
-            if deleted is True:
-                changes.situations_to_remove.append(situation.id)
-
-        for id in ids_overrided:
-            print "remove node : human-"+id
-            changes.nodes_to_remove.append(id)
-
+        # for situation in self.ctx.worlds()[self.world].timeline().situations():
+        #     updated = False
+        #     deleted = False
+        #     if rospy.Time().now().to_sec() - situation.end.data.to_sec() > 300.0:
+        #         deleted = True
+        #     else:
+        #         for property in situation.properties:
+        #             if property.name == "subject" or property.name == "object":
+        #                 if property.data in self.alternate_id_map:
+        #                     if self.alternate_id_map[property.data] != property.data:
+        #                         updated = True
+        #                         situation.description.replace("human-"+property.data, "human-"+self.alternate_id_map[property.data])
+        #                         property.data = self.alternate_id_map[property.data]
+        #                         ids_overrided.append(property.data)
+        #     if updated is True and deleted is False:
+        #         subject = self.ctx.worlds()[self.world].timeline().situations().get_situation_property(situation.id, "subject")
+        #         object = self.ctx.worlds()[self.world].timeline().situations().get_situation_property(situation.id, "object")
+        #         changes.situations_to_update.append(situation)
+        #
+        #     if deleted is True:
+        #         changes.situations_to_delete.append(situation.id)
+        #
+        # for node in self.ctx.worlds()[self.world].scene().nodes():
+        #     if node.id in self.alternate_id_map:
+        #         if self.alternate_id_map[node.id] < node.id:
+        #             print "remove node : human-"+node.id
+        #             changes.nodes_to_delete.append(id)
 
         self.ctx.worlds()[self.world].update(changes, header=person_msg.header)
 

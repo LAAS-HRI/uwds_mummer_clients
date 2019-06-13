@@ -1,3 +1,4 @@
+<?xml version="1.0"?>
 <launch>
   <node pkg="fake_localization" type="fake_localization" name="fake_localization">
     <rosparam subst_value="true">
