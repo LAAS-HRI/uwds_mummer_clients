@@ -207,8 +207,8 @@ class MultiModalHumanProvider(UwdsClient):
         for id in currently_perceived_ids:
             if id not in self.previously_perceived_ids:
                 # start fact
-                print("start: "+"human-"+id+" is perceived")
-                fact = Situation(description="human-"+id+" is perceived", type=FACT, id=str(uuid.uuid4().hex))
+                print("start: robot isPerceiving human-"+id)
+                fact = Situation(description="robot is perceiving human-"+id, type=FACT, id=str(uuid.uuid4().hex))
                 subject_property = Property(name="subject", data="robot")
                 object_property = Property(name="object", data=id)
                 predicate_property = Property(name="predicate", data="isPerceiving")
@@ -223,10 +223,10 @@ class MultiModalHumanProvider(UwdsClient):
         for id in self.previously_perceived_ids:
             if id not in currently_perceived_ids:
                 # stop fact
-                if id+"isPerceived" in self.predicates_map:
-                    if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isPerceived"]):
+                if id+"isPerceiving" in self.predicates_map:
+                    if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isPerceiving"]):
                         print("stop: "+"human-"+id+" is perceived")
-                        fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isPerceived"]]
+                        fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isPerceiving"]]
                         fact.end.data = now
                         fact.description = fact.description.replace("is","was")
                         changes.situations_to_update.append(fact)
