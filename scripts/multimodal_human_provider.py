@@ -138,7 +138,7 @@ class MultiModalHumanProvider(UwdsClient):
                         self.persons[str(person.person_id)].velocity.position.y = delta_y / delta_t
                         self.persons[str(person.person_id)].velocity.position.z = delta_z / delta_t
                     except:
-                        continue
+                        pass
 
                 self.persons[str(person.person_id)].position.pose.position.x = position[0]
                 self.persons[str(person.person_id)].position.pose.position.y = position[1]
@@ -150,7 +150,6 @@ class MultiModalHumanProvider(UwdsClient):
                 self.persons[str(person.person_id)].position.pose.orientation.w = quaternion[3]
 
                 self.persons[str(person.person_id)].last_observation.data = person_msg.header.stamp
-
                 changes.nodes_to_update.append(self.persons[str(person.person_id)])
 
                 min_id = person.person_id
@@ -180,7 +179,7 @@ class MultiModalHumanProvider(UwdsClient):
                         currently_looking_at[str(gaze.person_id)] = "robot"
                     else:
                         if gaze.probability_looking_at_screen > LOOK_AT_THRESHOLD:
-                            currently_looking_at[str(gaze.person_id)] = "screen"
+                            currently_looking_at[str(gaze.person_id)] = "robot"
                         else:
                             for attention in gaze.attentions:
                                 if attention.target_id in self.persons:
@@ -210,13 +209,15 @@ class MultiModalHumanProvider(UwdsClient):
                 # start fact
                 print("start: "+"human-"+id+" is perceived")
                 fact = Situation(description="human-"+id+" is perceived", type=FACT, id=str(uuid.uuid4().hex))
-                subject_property = Property(name="subject", data=id)
-                predicate_property = Property(name="predicate", data="isPerceived")
+                subject_property = Property(name="subject", data="robot")
+                object_property = Property(name="object", data=id)
+                predicate_property = Property(name="predicate", data="isPerceiving")
                 fact.start.data = now
                 fact.end.data = rospy.Time(0)
                 fact.properties.append(subject_property)
+                fact.properties.append(object_property)
                 fact.properties.append(predicate_property)
-                self.predicates_map[id+"isPerceived"] = fact.id
+                self.predicates_map[id+"isPerceiving"] = fact.id
                 changes.situations_to_update.append(fact)
 
         for id in self.previously_perceived_ids:
@@ -229,7 +230,7 @@ class MultiModalHumanProvider(UwdsClient):
                         fact.end.data = now
                         fact.description = fact.description.replace("is","was")
                         changes.situations_to_update.append(fact)
-                        del self.predicates_map[id+"isPerceived"]
+                        del self.predicates_map[id+"isPerceiving"]
 
         for id in currently_near_ids:
             if id not in self.previously_near_ids:
@@ -434,7 +435,8 @@ class MultiModalHumanProvider(UwdsClient):
         #         if self.alternate_id_map[node.id] < node.id:
         #             print "remove node : human-"+node.id
         #             changes.nodes_to_delete.append(id)
-
+        print ("nb nodes updated : "+str(len(changes.nodes_to_update)))
+        print ("nb situations updated : "+str(len(changes.situations_to_update)))
         self.ctx.worlds()[self.world].update(changes, header=person_msg.header)
 
 
