@@ -31,6 +31,13 @@
     <arg name="ressource_folder" default="$(find ideapark_description)/models/objects/"/>
   </include>
 
+
+  <include file="$(find uwds_mummer_clients)/launch/mummer_interface.launch">
+    <arg name="default_inputs" default="robot/merged"/>
+    <arg name="global_frame_id" default="map"/>
+  </include>
+
+
   <!-- GUI RELATED
   <include file="$(find uwds)/launch/scene_viewer.launch">
     <arg name="default_inputs" default="robot/merged"/>
