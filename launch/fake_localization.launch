@@ -5,8 +5,8 @@
          odom_frame_id: odom
          base_frame_id: base_link
          global_frame_id: map
-         delta_x: -29.306
-         delta_y: -9.158
+         delta_x: -7.0
+         delta_y: -16.0
          delta_yaw: 0.0
          transform_tolerance: 0.1
        </rosparam>
