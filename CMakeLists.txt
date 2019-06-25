@@ -125,9 +125,9 @@ include_directories(
 )
 
 ## Declare a C++ library
-add_library(${PROJECT_NAME}
-   src/gazes_provider.cpp
-)
+#add_library(${PROJECT_NAME}
+#   src/gazes_provider.cpp
+#)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -150,9 +150,9 @@ add_library(${PROJECT_NAME}
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(${PROJECT_NAME}
-   ${catkin_LIBRARIES}
-)
+#target_link_libraries(${PROJECT_NAME}
+#   ${catkin_LIBRARIES}
+#)
 
 #############
 ## Install ##
