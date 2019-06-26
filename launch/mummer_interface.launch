@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="output" default="screen"/>
-  <arg name="respawn" default="false"/>
+  <arg name="respawn" default="true"/>
   <arg name="start_manager" default="true"/>
   <arg name="start_server" default="false"/>
   <arg name="nodelet_manager" default="mummer_nodelet_manager"/>
@@ -10,7 +10,7 @@
   <arg name="default_inputs" default="robot/merged"/>
   <arg name="global_frame_id" default="map"/>
 
-  <node pkg="uwds_mummer_clients" type="mummer_interface.py" name="mummer_interface" output="screen">
+  <node pkg="uwds_mummer_clients" type="mummer_interface.py" name="mummer_interface" output="screen" respawn="true">
     <rosparam subst_value="true">
       global_frame_id: $(arg global_frame_id)
       default_inputs: $(arg default_inputs)

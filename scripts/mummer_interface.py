@@ -5,7 +5,7 @@ from pyuwds.reconfigurable_client import ReconfigurableClient
 from pyuwds.uwds import READER
 from std_msgs.msg import Header
 from perspectives_msgs.msg import Fact, FactArrayStamped, AgentArrayStamped, ObjectArrayStamped
-from perspectives_msgs.srv import HasMesh
+from perspectives_msgs.srv import HasMesh, GetName
 
 import tf_conversions
 import tf2_ros
@@ -17,10 +17,13 @@ class MummerInterface(ReconfigurableClient):
         super(MummerInterface, self).__init__("mummer_interface", READER)
         #self.input_world = ""
         self._pub = rospy.Publisher('base/current_facts', FactArrayStamped, queue_size=10)
-        self._timer = rospy.Timer(rospy.Duration(1/30.0), self.handleTimer)
+
         self._has_mesh_srv = rospy.Service("has_mesh", HasMesh, self.handleHasMesh)
+        self._get_name = rospy.Service("get_name", GetName, self.handleGetName)
 
         self._tf_broadcaster = tf2_ros.TransformBroadcaster()
+        rospy.sleep(2.0)
+        self._timer = rospy.Timer(rospy.Duration(1/30.0), self.handleTimer)
 
     def onSubscribeChanges(self, world_name):
         """
@@ -44,7 +47,7 @@ class MummerInterface(ReconfigurableClient):
         pass
 
     def handleHasMesh(self, req):
-        try :
+        try:
             nodes = self.ctx.worlds()[req.world].scene().nodes().by_name(req.name)
             if self.ctx.worlds()[req.world].scene().nodes().get_node_property(nodes[0].id, "meshes") != "":
                 return True, True
@@ -52,8 +55,17 @@ class MummerInterface(ReconfigurableClient):
                 return False, True
         except Exception as e:
             print (str(e))
-            return False , False
+            return False, False
 
+    def handleGetName(self, req):
+        try:
+            if self.ctx.worlds()[req.world].scene().nodes().has(req.id):
+                return self.ctx.worlds()[req.world].scene().nodes()[req.id].name, True
+            else:
+                return "", False
+        except Exception as e:
+            print (str(e))
+            return "", False
 
     def handleTimer(self, event):
         if self.input_world != "":
@@ -99,9 +111,10 @@ class MummerInterface(ReconfigurableClient):
                 current_facts.append(fact_msg)
             all_facts.append(fact_msg)
 
-            if predicate and predicate not in facts_by_predicate:
-                facts_by_predicate[predicate] = []
-            facts_by_predicate[predicate].append(fact_msg)
+            if predicate != "":
+                if predicate not in facts_by_predicate:
+                    facts_by_predicate[predicate] = []
+                    facts_by_predicate[predicate].append(fact_msg)
 
         fact_array_stamped = FactArrayStamped()
         fact_array_stamped.header = header
@@ -226,4 +239,3 @@ if __name__ == '__main__':
     rospy.init_node("uwds_mummer_interface")
     mi = MummerInterface()
     rospy.spin()
-

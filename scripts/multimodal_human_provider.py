@@ -426,16 +426,10 @@ class MultiModalHumanProvider(UwdsClient):
         to_repair = []
         for node in self.ctx.worlds()[self.world].scene().nodes():
             if node.id in self.alternate_id_map:
-                if self.alternate_id_map[node.id] != node.id or node.last_update.data + rospy.Duration(2.0) < rospy.Time.now() :
-                    if self.person_of_interest is not None:
-                        if self.person_of_interest != node.id:
-                            to_repair.append(node.id)
-                            print "remove node : human-"+node.id
-                            changes.nodes_to_delete.append(node.id)
-                    else:
-                        to_repair.append(node.id)
-                        print "remove node : human-"+node.id
-                        changes.nodes_to_delete.append(node.id)
+                if self.alternate_id_map[node.id] != node.id or node.last_update.data + rospy.Duration(5.0) < rospy.Time.now() :
+                    to_repair.append(node.id)
+                    print "remove node : human-"+node.id
+                    changes.nodes_to_delete.append(node.id)
 
         for situation in self.ctx.worlds()[self.world].timeline().situations():
             updated = False
@@ -453,22 +447,22 @@ class MultiModalHumanProvider(UwdsClient):
                 if property.data in self.alternate_id_map and property.data in to_repair:
                     if property.name == "object":
                         property.data = object
-                        print "repair timeline for node :"+self.alternate_id_map[object]
+                        #print "repair timeline for node :"+self.alternate_id_map[object]
                         updated = True
                     if property.name == "subject":
                         property.data = subject
-                        print "repair timeline for node :"+self.alternate_id_map[subject]
+                        #print "repair timeline for node :"+self.alternate_id_map[subject]
                         updated = True
             if updated and not deleted:
+                print "repair (update) : " + situation.description
                 changes.situations_to_update.append(situation)
             if deleted:
+                print "repair (delete) : " + situation.description
                 changes.situations_to_delete.append(situation.id)
 
         #print ("nb nodes updated : "+str(len(changes.nodes_to_update)))
         #print ("nb situations updated : "+str(len(changes.situations_to_update)))
         self.ctx.worlds()[self.world].update(changes, header=person_msg.header)
-        rospy.sleep(0.02)
-
 
     def callback_speech(self, msg):
         changes = Changes()

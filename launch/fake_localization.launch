@@ -1,15 +1,17 @@
 <?xml version="1.0"?>
 <launch>
-  <node pkg="fake_localization" type="fake_localization" name="fake_localization">
+  <!--<node pkg="fake_localization" type="fake_localization" name="fake_localization">
     <rosparam subst_value="true">
          odom_frame_id: odom
          base_frame_id: base_link
          global_frame_id: map
-         delta_x: -7.0
-         delta_y: -16.0
-         delta_yaw: 0.0
+         delta_x: -29.519
+         delta_y: -10.248
+         delta_yaw: 0
+         delta_roll: -1.57079
          transform_tolerance: 0.1
        </rosparam>
     <remap from="base_pose_ground_truth" to="/naoqi_driver_node/odom"/>
-  </node>
+  </node>-->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="fake_localization" args="29.519 10.248 0 -1.57 0 0 map odom" />
 </launch>
