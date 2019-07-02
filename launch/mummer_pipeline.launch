@@ -26,16 +26,17 @@
     <arg name="output_world" default="robot/merged"/>
   </include>
 
+<!--
   <include file="$(find uwds)/launch/visibility_monitor.launch">
     <arg name="default_inputs" default="robot/merged"/>
     <arg name="ressource_folder" default="$(find ideapark_description)/models/objects/"/>
-  </include>
-
+  </include>-->
 
   <include file="$(find uwds_mummer_clients)/launch/mummer_interface.launch">
-    <arg name="default_inputs" default="robot/merged_visibilities"/>
+    <arg name="default_inputs" default="robot/merged"/>
     <arg name="global_frame_id" default="map"/>
   </include>
+
 
 
   <!-- GUI RELATED

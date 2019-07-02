@@ -14,6 +14,7 @@ import geometry_msgs.msg
 
 class MummerInterface(ReconfigurableClient):
     def __init__(self):
+        self.start = False
         super(MummerInterface, self).__init__("mummer_interface", READER)
         #self.input_world = ""
         self._pub = rospy.Publisher('base/current_facts', FactArrayStamped, queue_size=10)
@@ -22,8 +23,9 @@ class MummerInterface(ReconfigurableClient):
         self._get_name = rospy.Service("get_name", GetName, self.handleGetName)
 
         self._tf_broadcaster = tf2_ros.TransformBroadcaster()
-        rospy.sleep(2.0)
         self._timer = rospy.Timer(rospy.Duration(1/30.0), self.handleTimer)
+
+        self.start = True
 
     def onSubscribeChanges(self, world_name):
         """
@@ -38,8 +40,13 @@ class MummerInterface(ReconfigurableClient):
     def onReconfigure(self, worlds_names):
         """
         """
-        print worlds_names
-        self.input_world = worlds_names[0]
+
+        self.input_world = worlds_names
+        print self.input_world[0]
+        if self.input_world[0] != "":
+            self.start = True
+        else:
+            self.start = False
 
     def onChanges(self, world_name, header, invalidations):
         """
@@ -68,12 +75,12 @@ class MummerInterface(ReconfigurableClient):
             return "", False
 
     def handleTimer(self, event):
-        if self.input_world != "":
+        if self.start is True:
             header = Header()
             header.frame_id = self.global_frame_id
             header.stamp = rospy.Time.now()
             self.publish_world_facts(self.input_worlds[0], header)
-
+            #self.ctx.worlds()[self.input_worlds[0]].scene().nodes()._lock()
             for node in self.ctx.worlds()[self.input_worlds[0]].scene().nodes():
                 t = geometry_msgs.msg.TransformStamped()
                 t.header.stamp = rospy.Time.now()
@@ -87,40 +94,42 @@ class MummerInterface(ReconfigurableClient):
                 t.transform.rotation.z = node.position.pose.orientation.z
                 t.transform.rotation.w = node.position.pose.orientation.w
                 self._tf_broadcaster.sendTransform(t)
+            #self.ctx.worlds()[self.input_worlds[0]].scene().nodes()._unlock()
 
     def publish_world_facts(self, world_name, header):
         # publish facts
-        current_facts = []
-        all_facts = []
-        facts_by_predicate = {}
+        if self.start is True:
+            current_facts = []
+            all_facts = []
+            facts_by_predicate = {}
+            #self.ctx.worlds()[world_name].timeline().situations()._lock()
+            for situation in self.ctx.worlds()[world_name].timeline().situations():
+                fact_msg = Fact()
+                fact_msg.id = situation.id
+                fact_msg.description = situation.description
+                predicate = self.ctx.worlds()[world_name].timeline().situations().get_situation_property(situation.id, "predicate")
+                subject = self.ctx.worlds()[world_name].timeline().situations().get_situation_property(situation.id, "subject")
+                object = self.ctx.worlds()[world_name].timeline().situations().get_situation_property(situation.id, "object")
+                fact_msg.predicate = predicate
+                fact_msg.subject_name = subject
+                fact_msg.object_name = object
+                fact_msg.start_time = situation.start
+                fact_msg.end_time = situation.end
 
-        for situation in self.ctx.worlds()[world_name].timeline().situations():
-            fact_msg = Fact()
-            fact_msg.id = situation.id
-            fact_msg.description = situation.description
-            predicate = self.ctx.worlds()[world_name].timeline().situations().get_situation_property(situation.id, "predicate")
-            subject = self.ctx.worlds()[world_name].timeline().situations().get_situation_property(situation.id, "subject")
-            object = self.ctx.worlds()[world_name].timeline().situations().get_situation_property(situation.id, "object")
-            fact_msg.predicate = predicate
-            fact_msg.subject_name = subject
-            fact_msg.object_name = object
-            fact_msg.start_time = situation.start
-            fact_msg.end_time = situation.end
+                if situation.end.data == rospy.Time(0):
+                    current_facts.append(fact_msg)
+                all_facts.append(fact_msg)
 
-            if situation.end.data == rospy.Time(0):
-                current_facts.append(fact_msg)
-            all_facts.append(fact_msg)
+                if predicate != "":
+                    if predicate not in facts_by_predicate:
+                        facts_by_predicate[predicate] = []
+                        facts_by_predicate[predicate].append(fact_msg)
+            #self.ctx.worlds()[world_name].timeline().situations()._unlock()
+            fact_array_stamped = FactArrayStamped()
+            fact_array_stamped.header = header
+            fact_array_stamped.facts = current_facts
 
-            if predicate != "":
-                if predicate not in facts_by_predicate:
-                    facts_by_predicate[predicate] = []
-                    facts_by_predicate[predicate].append(fact_msg)
-
-        fact_array_stamped = FactArrayStamped()
-        fact_array_stamped.header = header
-        fact_array_stamped.facts = current_facts
-        self._pub.publish(fact_array_stamped)
-
+            self._pub.publish(fact_array_stamped)
 
     #     self.ros_publishers[world_name]["current_facts"].publish(fact_array_stamped)
     #

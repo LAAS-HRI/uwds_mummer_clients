@@ -25,7 +25,7 @@ DEFAULT_CLIP_PLANE_FAR = 1000.0
 DEFAULT_HORIZONTAL_FOV = 60.0
 DEFAULT_ASPECT = 1.33333
 LOOK_AT_THRESHOLD = 0.6
-MIN_NB_DETECTION = 1
+NB_MIN_DETECTION = 7
 MAX_DIS = 2.5
 
 CLOSE_MAX_DISTANCE = 1.0
@@ -46,7 +46,7 @@ class MultiModalHumanProvider(UwdsClient):
         self.perceived_ids = []
         self.alternate_id_map = {}
         self.last_speaking_id = ""
-
+        self.nb_detection = {}
         self.ros_sub = {"gaze_tracker": message_filters.Subscriber("wp2/gaze", GazeInfoArray),
                         "voice_tracker": message_filters.Subscriber("wp2/voice", VoiceActivityArray),
                         "person_tracker": message_filters.Subscriber("wp2/track", TrackedPersonArray),
@@ -87,7 +87,7 @@ class MultiModalHumanProvider(UwdsClient):
         #print "perception callback called"
 
         #trans = self.tfBuffer.lookup_transform(turtle_name, 'turtle1', rospy.Time())
-        changes = Changes()
+        self.changes = Changes()
 
         now = rospy.Time.now()
 
@@ -95,72 +95,19 @@ class MultiModalHumanProvider(UwdsClient):
         voice_attention_point = None
         min_dist = 10000
 
-        currently_perceived_ids = []
-        currently_near_ids = []
-        currently_close_ids = []
-        currently_speaking_ids = []
-        currently_looking_at = {}
-        currently_speaking_to = {}
+        self.currently_perceived_ids = []
+        self.currently_near_ids = []
+        self.currently_close_ids = []
+        self.currently_speaking_ids = []
+        self.currently_looking_at = {}
+        self.currently_speaking_to = {}
 
         if len(person_msg.data) > 0:
             for person in person_msg.data:
-                if str(person.person_id) not in self.persons:
-                    new_node = Node()
-                    new_node.name = "human-"+str(person.person_id)
-                    new_node.id = str(person.person_id)
-                    new_node.type = CAMERA
-                    clipnear_property = Property(name="clipnear", data=str(DEFAULT_CLIP_PLANE_NEAR))
-                    clipfar_property = Property(name="clipfar", data=str(DEFAULT_CLIP_PLANE_FAR))
-                    hfov_property = Property(name="hfov", data=str(DEFAULT_HORIZONTAL_FOV))
-                    aspect_property = Property(name="aspect", data=str(DEFAULT_ASPECT))
-                    class_property = Property(name="class", data="Human")
-                    new_node.properties.append(clipnear_property)
-                    new_node.properties.append(clipfar_property)
-                    new_node.properties.append(hfov_property)
-                    new_node.properties.append(aspect_property)
-                    new_node.properties.append(class_property)
-                    self.persons[str(person.person_id)] = new_node
-                    #self.predicates_map[str(person.person_id)] = []
-                if person.head_distance < min_dist:
-                    min_dist = person.head_distance
-                    closest_human = str(person.person_id)
-                    currently_perceived_ids.append(str(person.person_id))
-                self.human_distances[str(person.person_id)] = person.head_distance
-
-                t = [person.head_pose.position.x, person.head_pose.position.y, person.head_pose.position.z]
-                q = [person.head_pose.orientation.x, person.head_pose.orientation.y, person.head_pose.orientation.z, person.head_pose.orientation.w]
-
-                offset = euler_matrix(0, math.radians(90), math.radians(90), "rxyz")
-
-                transform = numpy.dot(transformation_matrix(t, q), offset)
-
-                position = translation_from_matrix(transform)
-                quaternion = quaternion_from_matrix(transform)
-
-                if self.ctx.worlds()[self.world].scene().nodes().has(str(person.person_id)):
-                    try :
-                        delta_x = self.persons[str(person.person_id)].position.pose.position.x - position[0]
-                        delta_y = self.persons[str(person.person_id)].position.pose.position.y - position[1]
-                        delta_z = self.persons[str(person.person_id)].position.pose.position.z - position[2]
-                        delta_t = person_msg.header.stamp - self.persons[str(person.person_id)].last_observation.data
-
-                        self.persons[str(person.person_id)].velocity.position.x = delta_x / delta_t
-                        self.persons[str(person.person_id)].velocity.position.y = delta_y / delta_t
-                        self.persons[str(person.person_id)].velocity.position.z = delta_z / delta_t
-                    except:
-                        pass
-
-                self.persons[str(person.person_id)].position.pose.position.x = position[0]
-                self.persons[str(person.person_id)].position.pose.position.y = position[1]
-                self.persons[str(person.person_id)].position.pose.position.z = position[2]
-
-                self.persons[str(person.person_id)].position.pose.orientation.x = quaternion[0]
-                self.persons[str(person.person_id)].position.pose.orientation.y = quaternion[1]
-                self.persons[str(person.person_id)].position.pose.orientation.z = quaternion[2]
-                self.persons[str(person.person_id)].position.pose.orientation.w = quaternion[3]
-
-                self.persons[str(person.person_id)].last_observation.data = person_msg.header.stamp
-                changes.nodes_to_update.append(self.persons[str(person.person_id)])
+                if str(person.person_id) not in self.nb_detection:
+                    self.nb_detection[str(person.person_id)] = 0
+                else:
+                    self.nb_detection[str(person.person_id)] += 1
 
                 min_id = person.person_id
                 for id in person.alternate_ids:
@@ -168,12 +115,70 @@ class MultiModalHumanProvider(UwdsClient):
                         min_id = id
                 self.alternate_id_map[str(person.person_id)] = str(min_id)
 
+                if self.nb_detection[str(person.person_id)] > NB_MIN_DETECTION:
+                    if str(person.person_id) not in self.persons:
+                        new_node = Node()
+                        new_node.name = "human-"+str(person.person_id)
+                        new_node.id = str(person.person_id)
+                        new_node.type = CAMERA
+                        clipnear_property = Property(name="clipnear", data=str(DEFAULT_CLIP_PLANE_NEAR))
+                        clipfar_property = Property(name="clipfar", data=str(DEFAULT_CLIP_PLANE_FAR))
+                        hfov_property = Property(name="hfov", data=str(DEFAULT_HORIZONTAL_FOV))
+                        aspect_property = Property(name="aspect", data=str(DEFAULT_ASPECT))
+                        class_property = Property(name="class", data="Human")
+                        new_node.properties.append(clipnear_property)
+                        new_node.properties.append(clipfar_property)
+                        new_node.properties.append(hfov_property)
+                        new_node.properties.append(aspect_property)
+                        new_node.properties.append(class_property)
+                        self.persons[str(person.person_id)] = new_node
+                        self.changes.nodes_to_update.append(self.persons[str(person.person_id)])
+                        #self.predicates_map[str(person.person_id)] = []
+                    self.currently_perceived_ids.append(str(person.person_id))
+                    self.human_distances[str(person.person_id)] = person.head_distance
+
+                    t = [person.head_pose.position.x, person.head_pose.position.y, person.head_pose.position.z]
+                    q = [person.head_pose.orientation.x, person.head_pose.orientation.y, person.head_pose.orientation.z, person.head_pose.orientation.w]
+
+                    offset = euler_matrix(0, math.radians(90), math.radians(90), "rxyz")
+
+                    transform = numpy.dot(transformation_matrix(t, q), offset)
+
+                    position = translation_from_matrix(transform)
+                    quaternion = quaternion_from_matrix(transform)
+
+                    if self.ctx.worlds()[self.world].scene().nodes().has(str(person.person_id)):
+                        try :
+                            delta_x = self.persons[str(person.person_id)].position.pose.position.x - position[0]
+                            delta_y = self.persons[str(person.person_id)].position.pose.position.y - position[1]
+                            delta_z = self.persons[str(person.person_id)].position.pose.position.z - position[2]
+                            delta_t = person_msg.header.stamp - self.persons[str(person.person_id)].last_observation.data
+
+                            self.persons[str(person.person_id)].velocity.position.x = delta_x / delta_t
+                            self.persons[str(person.person_id)].velocity.position.y = delta_y / delta_t
+                            self.persons[str(person.person_id)].velocity.position.z = delta_z / delta_t
+                        except Exception:
+                            pass
+
+                    self.persons[str(person.person_id)].position.pose.position.x = position[0]
+                    self.persons[str(person.person_id)].position.pose.position.y = position[1]
+                    self.persons[str(person.person_id)].position.pose.position.z = position[2]
+
+                    self.persons[str(person.person_id)].position.pose.orientation.x = quaternion[0]
+                    self.persons[str(person.person_id)].position.pose.orientation.y = quaternion[1]
+                    self.persons[str(person.person_id)].position.pose.orientation.z = quaternion[2]
+                    self.persons[str(person.person_id)].position.pose.orientation.w = quaternion[3]
+
+                    self.persons[str(person.person_id)].last_observation.data = person_msg.header.stamp
+                    self.changes.nodes_to_update.append(self.persons[str(person.person_id)])
+
+
             min_dist = 10000
             min_id = None
             for voice in voice_msg.data:
                 if str(voice.person_id) in self.persons:
                     if voice.is_speaking:
-                        currently_speaking_ids.append(str(voice.person_id))
+                        self.currently_speaking_ids.append(str(voice.person_id))
                         if str(voice.person_id) in self.distances:
                             if self.human_distances[str(voice.person_id)] < min_dist:
                                 min_dist = self.human_distances[str(voice.person_id)]
@@ -186,38 +191,38 @@ class MultiModalHumanProvider(UwdsClient):
             for gaze in gaze_msg.data:
                 if str(gaze.person_id) in self.persons:
                     if gaze.probability_looking_at_robot > LOOK_AT_THRESHOLD:
-                        currently_looking_at[str(gaze.person_id)] = "robot"
+                        self.currently_looking_at[str(gaze.person_id)] = "robot"
                     else:
                         if gaze.probability_looking_at_screen > LOOK_AT_THRESHOLD:
-                            currently_looking_at[str(gaze.person_id)] = "robot"
+                            self.currently_looking_at[str(gaze.person_id)] = "robot"
                         else:
                             for attention in gaze.attentions:
                                 if attention.target_id in self.persons:
                                     if attention.probability_looking_at_target > LOOK_AT_THRESHOLD:
                                         if str(attention.target_id) in self.alternate_id_map:
-                                            currently_looking_at[str(gaze.person_id)] = self.alternate_id_map[str(attention.target_id)]
+                                            self.currently_looking_at[str(gaze.person_id)] = self.alternate_id_map[str(attention.target_id)]
 
             min_dist = 10000
             min_id = None
             for id, dist in self.human_distances.items():
-                if dist < NEAR_MAX_DISTANCE:
-                    if min_dist > dist:
-                        min_dist = dist
-                        min_id = id
-                    if dist < CLOSE_MAX_DISTANCE:
-                        currently_close_ids.append(id)
-                    else:
-                        currently_near_ids.append(id)
+                if id in self.currently_perceived_ids:
+                    if dist < NEAR_MAX_DISTANCE:
+                        if min_dist > dist:
+                            min_dist = dist
+                            min_id = id
+                        if dist < CLOSE_MAX_DISTANCE:
+                            self.currently_close_ids.append(id)
+                        else:
+                            self.currently_near_ids.append(id)
             if min_id is not None:
                 voice_attention_point = PointStamped()
                 voice_attention_point.header.frame_id = str(min_id)
                 voice_attention_point.point = Point(0, 0, 0)
 
-
-        for id in currently_perceived_ids:
+        for id in self.currently_perceived_ids:
             if id not in self.previously_perceived_ids:
                 # start fact
-                print("start: robot isPerceiving human-"+id)
+                print("start: robot is perceiving human-"+id)
                 fact = Situation(description="robot is perceiving human-"+id, type=FACT, id=str(uuid.uuid4().hex))
                 subject_property = Property(name="subject", data="robot")
                 object_property = Property(name="object", data=id)
@@ -228,10 +233,10 @@ class MultiModalHumanProvider(UwdsClient):
                 fact.properties.append(object_property)
                 fact.properties.append(predicate_property)
                 self.predicates_map[id+"isPerceiving"] = fact.id
-                changes.situations_to_update.append(fact)
+                self.changes.situations_to_update.append(fact)
 
         for id in self.previously_perceived_ids:
-            if id not in currently_perceived_ids:
+            if id not in self.currently_perceived_ids:
                 # stop fact
                 if id+"isPerceiving" in self.predicates_map:
                     if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isPerceiving"]):
@@ -239,10 +244,10 @@ class MultiModalHumanProvider(UwdsClient):
                         fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isPerceiving"]]
                         fact.end.data = now
                         fact.description = fact.description.replace("is","was")
-                        changes.situations_to_update.append(fact)
+                        self.changes.situations_to_update.append(fact)
                         del self.predicates_map[id+"isPerceiving"]
 
-        for id in currently_near_ids:
+        for id in self.currently_near_ids:
             if id not in self.previously_near_ids:
                 # start fact
                 print("start: "+"human-"+id+" is near")
@@ -254,10 +259,10 @@ class MultiModalHumanProvider(UwdsClient):
                 fact.properties.append(subject_property)
                 fact.properties.append(predicate_property)
                 self.predicates_map[id+"isNear"] = fact.id
-                changes.situations_to_update.append(fact)
+                self.changes.situations_to_update.append(fact)
 
         for id in self.previously_near_ids:
-            if id not in currently_perceived_ids or id not in currently_near_ids:
+            if id not in self.currently_perceived_ids or id not in self.currently_near_ids:
                 # stop fact
                 if id+"isNear" in self.predicates_map:
                     print("stop: "+"human-"+id+" is near")
@@ -265,10 +270,10 @@ class MultiModalHumanProvider(UwdsClient):
                         fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isNear"]]
                         fact.end.data = now
                         fact.description = fact.description.replace("is","was")
-                        changes.situations_to_update.append(fact)
+                        self.changes.situations_to_update.append(fact)
                         del self.predicates_map[id+"isNear"]
 
-        for id in currently_close_ids:
+        for id in self.currently_close_ids:
             if id not in self.previously_close_ids:
                 # start fact
                 print "start: "+"human-"+id+" is close"
@@ -280,10 +285,10 @@ class MultiModalHumanProvider(UwdsClient):
                 fact.properties.append(subject_property)
                 fact.properties.append(predicate_property)
                 self.predicates_map[id+"isClose"] = fact.id
-                changes.situations_to_update.append(fact)
+                self.changes.situations_to_update.append(fact)
 
         for id in self.previously_close_ids:
-            if id not in currently_perceived_ids or id not in currently_close_ids:
+            if id not in self.currently_perceived_ids or id not in self.currently_close_ids:
                 # stop fact
                 if id+"isClose" in self.predicates_map:
                     if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isClose"]):
@@ -291,11 +296,11 @@ class MultiModalHumanProvider(UwdsClient):
                         fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isClose"]]
                         fact.end.data = now
                         fact.description = fact.description.replace("is","was")
-                        changes.situations_to_update.append(fact)
+                        self.changes.situations_to_update.append(fact)
                         del self.predicates_map[id+"isClose"]
 
 
-        for id in currently_speaking_ids:
+        for id in self.currently_speaking_ids:
             if id not in self.previously_speaking_ids:
                 # start fact
                 print("start: "+"human-"+id+" is speaking")
@@ -307,10 +312,10 @@ class MultiModalHumanProvider(UwdsClient):
                 fact.properties.append(subject_property)
                 fact.properties.append(predicate_property)
                 self.predicates_map[id+"isSpeaking"] = fact.id
-                changes.situations_to_update.append(fact)
+                self.changes.situations_to_update.append(fact)
 
         for id in self.previously_speaking_ids:
-            if id not in currently_perceived_ids or id not in currently_speaking_ids:
+            if id not in self.currently_perceived_ids or id not in self.currently_speaking_ids:
                 # stop fact
                 if id+"isSpeaking" in self.predicates_map:
                     if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isSpeaking"]):
@@ -318,12 +323,12 @@ class MultiModalHumanProvider(UwdsClient):
                         fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isSpeaking"]]
                         fact.end.data = now
                         fact.description = fact.description.replace("is","was")
-                        changes.situations_to_update.append(fact)
+                        self.changes.situations_to_update.append(fact)
                         self.last_speaking_id = fact.id
                         del self.predicates_map[id+"isSpeaking"]
 
-        for subject_id in currently_looking_at.keys():
-            object_id = currently_looking_at[subject_id]
+        for subject_id in self.currently_looking_at.keys():
+            object_id = self.currently_looking_at[subject_id]
             start_fact = False
             if subject_id not in self.previously_looking_at:
                 start_fact = True
@@ -345,12 +350,12 @@ class MultiModalHumanProvider(UwdsClient):
                     fact.properties.append(object_property)
                     fact.properties.append(predicate_property)
                     self.predicates_map[subject_id+"isLookingAt"+object_id] = fact.id
-                    changes.situations_to_update.append(fact)
+                    self.changes.situations_to_update.append(fact)
 
         for subject_id in self.previously_looking_at.keys():
             object_id = self.previously_looking_at[subject_id]
             stop_fact = False
-            if subject_id not in currently_looking_at:
+            if subject_id not in self.currently_looking_at:
                 stop_fact = True
             else:
                 if object_id not in self.previously_looking_at[subject_id]:
@@ -363,11 +368,11 @@ class MultiModalHumanProvider(UwdsClient):
                     fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[subject_id+"isLookingAt"+object_id]]
                     fact.end.data = now
                     fact.description = fact.description.replace("is","was")
-                    changes.situations_to_update(fact)
+                    self.changes.situations_to_delete(fact)
                     del self.predicates_map[subject_id+"isLookingAt"+object_id]
 
-        for subject_id in currently_speaking_to.keys():
-            for object_id in currently_speaking_to[subject_id]:
+        for subject_id in self.currently_speaking_to.keys():
+            for object_id in self.currently_speaking_to[subject_id]:
                 start_fact = False
                 if subject_id not in self.previously_speaking_to:
                     start_fact = True
@@ -388,7 +393,7 @@ class MultiModalHumanProvider(UwdsClient):
                     fact.properties.append(object_property)
                     fact.properties.append(predicate_property)
                     self.predicates_map[subject_id+"isSpeakingTo"+object_id] = fact.id
-                    changes.situations_to_update.append(fact)
+                    self.changes.situations_to_update.append(fact)
 
         for subject_id in self.previously_speaking_to.keys():
             for object_id in self.previously_speaking_to[subject_id]:
@@ -403,39 +408,21 @@ class MultiModalHumanProvider(UwdsClient):
                     fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[subject_id+"isSpeakingTo"+object_id]]
                     fact.end.data = now
                     fact.description = fact.description.replace("is","was")
-                    changes.situations_to_update(fact)
+                    self.changes.situations_to_update(fact)
                     del self.predicates_map[subject_id+"isSpeakingTo"+object_id]
-
-        #print "send updates"
-        #print currently_looking_at
-
-        self.previously_near_ids = currently_near_ids
-        self.previously_close_ids = currently_close_ids
-        self.previously_looking_at = currently_looking_at
-        self.previously_speaking_ids = currently_speaking_ids
-        self.previously_speaking_to = currently_speaking_to
-        self.previously_perceived_ids = currently_perceived_ids
 
         ids_overrided = []
         #print("local timeline size : "+str(len(self.ctx.worlds()[self.world].timeline().situations())))
-
+        to_repair = []
         if self.person_of_interest is not None:
             if rospy.Time().now() - self.last_update_person > rospy.Duration(2.0):
                 self.person_of_interest = None
-
-        to_repair = []
-        for node in self.ctx.worlds()[self.world].scene().nodes():
-            if node.id in self.alternate_id_map:
-                if self.alternate_id_map[node.id] != node.id or node.last_update.data + rospy.Duration(5.0) < rospy.Time.now() :
-                    to_repair.append(node.id)
-                    print "remove node : human-"+node.id
-                    changes.nodes_to_delete.append(node.id)
 
         for situation in self.ctx.worlds()[self.world].timeline().situations():
             updated = False
             deleted = False
             if situation.end.data != rospy.Time(0):
-                if rospy.Time().now().to_sec() - situation.end.data.to_sec() > 30.0:
+                if rospy.Time().now().to_sec() - situation.end.data.to_sec() > 4.0:
                     deleted = True
             subject = self.ctx.worlds()[self.world].timeline().situations().get_situation_property(situation.id, "subject")
             object = self.ctx.worlds()[self.world].timeline().situations().get_situation_property(situation.id, "object")
@@ -455,14 +442,84 @@ class MultiModalHumanProvider(UwdsClient):
                         updated = True
             if updated and not deleted:
                 print "repair (update) : " + situation.description
-                changes.situations_to_update.append(situation)
+                self.changes.situations_to_update.append(situation)
             if deleted:
                 print "repair (delete) : " + situation.description
-                changes.situations_to_delete.append(situation.id)
+                self.changes.situations_to_delete.append(situation.id)
+
+        for node in self.ctx.worlds()[self.world].scene().nodes():
+            if node.id in self.alternate_id_map:
+                if self.alternate_id_map[node.id] != node.id or node.last_update.data + rospy.Duration(5.0) < rospy.Time.now():
+                    print "remove node : human-"+node.id
+                    #self.clear_local_data(node.id)
+                    if node.id in self.nb_detection:
+                        self.nb_detection[node.id] = 0
+                    self.changes.nodes_to_delete.append(node.id)
+
+
+        self.previously_near_ids = self.currently_near_ids
+        self.previously_close_ids = self.currently_close_ids
+        self.previously_looking_at = self.currently_looking_at
+        self.previously_speaking_ids = self.currently_speaking_ids
+        self.previously_speaking_to = self.currently_speaking_to
+        self.previously_perceived_ids = self.currently_perceived_ids
 
         #print ("nb nodes updated : "+str(len(changes.nodes_to_update)))
         #print ("nb situations updated : "+str(len(changes.situations_to_update)))
-        self.ctx.worlds()[self.world].update(changes, header=person_msg.header)
+        self.ctx.worlds()[self.world].update(self.changes, header=person_msg.header)
+
+    def clear_local_data(self, id):
+
+        if id in self.nb_detection:
+            self.nb_detection[id] = 0
+
+        if id in self.previously_near_ids:
+            self.previously_near_ids.remove(id)
+
+        if id in self.currently_near_ids:
+            self.currently_near_ids.remove(id)
+
+        if id in self.previously_close_ids:
+            self.previously_close_ids.remove(id)
+
+        if id in self.currently_close_ids:
+            self.currently_close_ids.remove(id)
+
+        if id in self.currently_perceived_ids:
+            self.currently_perceived_ids.remove(id)
+
+        if id in self.previously_perceived_ids:
+            self.previously_perceived_ids.remove(id)
+
+        if id in self.previously_looking_at:
+            del self.previously_looking_at[id]
+
+        if id in self.currently_looking_at:
+            del self.currently_looking_at[id]
+
+        if id in self.previously_speaking_to:
+            del self.previously_speaking_to[id]
+
+        if id in self.currently_speaking_to:
+            del self.currently_speaking_to[id]
+
+        to_remove = []
+        for sit in self.changes.situations_to_update:
+            for property in sit.properties:
+                if property.name == "object" or property.name == "subject":
+                    if property.data == id:
+                        to_remove.append(sit)
+
+        for sit in to_remove:
+            self.changes.situations_to_update.remove(sit)
+
+        to_remove = []
+        for node in self.changes.nodes_to_update:
+            if node.id == id:
+                to_remove.append(node)
+
+        for node in to_remove:
+            self.changes.nodes_to_update.remove(node)
 
     def callback_speech(self, msg):
         changes = Changes()
