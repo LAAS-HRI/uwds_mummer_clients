@@ -12,7 +12,7 @@ from tf.transformations import *
 from uwds_msgs.msg import Changes, Node, Situation, Property
 from std_msgs.msg import Int32
 from pyuwds.types.nodes import CAMERA
-from pyuwds.types.situations import FACT
+from pyuwds.types.situations import FACT, ACTION
 from pyuwds.uwds import PROVIDER
 from pyuwds.uwds_client import UwdsClient
 from perception_msgs.msg import GazeInfoArray, VoiceActivityArray, TrackedPersonArray
@@ -24,12 +24,18 @@ DEFAULT_CLIP_PLANE_NEAR = 0.2
 DEFAULT_CLIP_PLANE_FAR = 1000.0
 DEFAULT_HORIZONTAL_FOV = 60.0
 DEFAULT_ASPECT = 1.33333
-LOOK_AT_THRESHOLD = 0.6
-NB_MIN_DETECTION = 7
-MAX_DIS = 2.5
+
+LOOK_AT_THRESHOLD = 0.4
+ENGAGING_DISTANCE = 1.5
+ENGAGING_MIN_TIME = 1.0
+
+NB_MIN_DETECTION = 9
+MAX_DIST = 2.5
 
 CLOSE_MAX_DISTANCE = 1.0
 NEAR_MAX_DISTANCE = 2.0
+
+MIN_ENGAGEMENT_DURATION = 3.0
 
 def transformation_matrix(t, q):
     translation_mat = translation_matrix(t)
@@ -62,6 +68,10 @@ class MultiModalHumanProvider(UwdsClient):
         self.previously_looking_at = {}
         self.previously_speaking_to = {}
 
+        self.previously_engaging_with = {}
+        self.previously_engaged_with = {}
+        self.last_engagement_time = {}
+
         self.world = rospy.get_param("~output_world", "robot/humans")
 
         self.person_of_interest_sub = rospy.Subscriber("person_of_interest", Int32, self.handle_person)
@@ -77,7 +87,7 @@ class MultiModalHumanProvider(UwdsClient):
 
         self.pepper_id = str(uuid.uuid4())
 
-        print " Ready"
+
 
     def handle_person(self, msg):
         self.person_of_interest = str(msg.data)
@@ -102,6 +112,9 @@ class MultiModalHumanProvider(UwdsClient):
         self.currently_looking_at = {}
         self.currently_speaking_to = {}
 
+        self.currently_engaging_with = {}
+        self.currently_engaged_with = {}
+
         if len(person_msg.data) > 0:
             for person in person_msg.data:
                 if str(person.person_id) not in self.nb_detection:
@@ -116,61 +129,62 @@ class MultiModalHumanProvider(UwdsClient):
                 self.alternate_id_map[str(person.person_id)] = str(min_id)
 
                 if self.nb_detection[str(person.person_id)] > NB_MIN_DETECTION:
-                    if str(person.person_id) not in self.persons:
-                        new_node = Node()
-                        new_node.name = "human-"+str(person.person_id)
-                        new_node.id = str(person.person_id)
-                        new_node.type = CAMERA
-                        clipnear_property = Property(name="clipnear", data=str(DEFAULT_CLIP_PLANE_NEAR))
-                        clipfar_property = Property(name="clipfar", data=str(DEFAULT_CLIP_PLANE_FAR))
-                        hfov_property = Property(name="hfov", data=str(DEFAULT_HORIZONTAL_FOV))
-                        aspect_property = Property(name="aspect", data=str(DEFAULT_ASPECT))
-                        class_property = Property(name="class", data="Human")
-                        new_node.properties.append(clipnear_property)
-                        new_node.properties.append(clipfar_property)
-                        new_node.properties.append(hfov_property)
-                        new_node.properties.append(aspect_property)
-                        new_node.properties.append(class_property)
-                        self.persons[str(person.person_id)] = new_node
+                    if person.head_distance < MAX_DIST:
+                        if str(person.person_id) not in self.persons:
+                            new_node = Node()
+                            new_node.name = "human-"+str(person.person_id)
+                            new_node.id = str(person.person_id)
+                            new_node.type = CAMERA
+                            clipnear_property = Property(name="clipnear", data=str(DEFAULT_CLIP_PLANE_NEAR))
+                            clipfar_property = Property(name="clipfar", data=str(DEFAULT_CLIP_PLANE_FAR))
+                            hfov_property = Property(name="hfov", data=str(DEFAULT_HORIZONTAL_FOV))
+                            aspect_property = Property(name="aspect", data=str(DEFAULT_ASPECT))
+                            class_property = Property(name="class", data="Human")
+                            new_node.properties.append(clipnear_property)
+                            new_node.properties.append(clipfar_property)
+                            new_node.properties.append(hfov_property)
+                            new_node.properties.append(aspect_property)
+                            new_node.properties.append(class_property)
+                            self.persons[str(person.person_id)] = new_node
+                            self.changes.nodes_to_update.append(self.persons[str(person.person_id)])
+                            #self.predicates_map[str(person.person_id)] = []
+                        self.currently_perceived_ids.append(str(person.person_id))
+                        self.human_distances[str(person.person_id)] = person.head_distance
+
+                        t = [person.head_pose.position.x, person.head_pose.position.y, person.head_pose.position.z]
+                        q = [person.head_pose.orientation.x, person.head_pose.orientation.y, person.head_pose.orientation.z, person.head_pose.orientation.w]
+
+                        offset = euler_matrix(0, math.radians(90), math.radians(90), "rxyz")
+
+                        transform = numpy.dot(transformation_matrix(t, q), offset)
+
+                        position = translation_from_matrix(transform)
+                        quaternion = quaternion_from_matrix(transform)
+
+                        if self.ctx.worlds()[self.world].scene().nodes().has(str(person.person_id)):
+                            try :
+                                delta_x = self.persons[str(person.person_id)].position.pose.position.x - position[0]
+                                delta_y = self.persons[str(person.person_id)].position.pose.position.y - position[1]
+                                delta_z = self.persons[str(person.person_id)].position.pose.position.z - position[2]
+                                delta_t = person_msg.header.stamp - self.persons[str(person.person_id)].last_observation.data
+
+                                self.persons[str(person.person_id)].velocity.position.x = delta_x / delta_t
+                                self.persons[str(person.person_id)].velocity.position.y = delta_y / delta_t
+                                self.persons[str(person.person_id)].velocity.position.z = delta_z / delta_t
+                            except Exception:
+                                pass
+
+                        self.persons[str(person.person_id)].position.pose.position.x = position[0]
+                        self.persons[str(person.person_id)].position.pose.position.y = position[1]
+                        self.persons[str(person.person_id)].position.pose.position.z = position[2]
+
+                        self.persons[str(person.person_id)].position.pose.orientation.x = quaternion[0]
+                        self.persons[str(person.person_id)].position.pose.orientation.y = quaternion[1]
+                        self.persons[str(person.person_id)].position.pose.orientation.z = quaternion[2]
+                        self.persons[str(person.person_id)].position.pose.orientation.w = quaternion[3]
+
+                        self.persons[str(person.person_id)].last_observation.data = person_msg.header.stamp
                         self.changes.nodes_to_update.append(self.persons[str(person.person_id)])
-                        #self.predicates_map[str(person.person_id)] = []
-                    self.currently_perceived_ids.append(str(person.person_id))
-                    self.human_distances[str(person.person_id)] = person.head_distance
-
-                    t = [person.head_pose.position.x, person.head_pose.position.y, person.head_pose.position.z]
-                    q = [person.head_pose.orientation.x, person.head_pose.orientation.y, person.head_pose.orientation.z, person.head_pose.orientation.w]
-
-                    offset = euler_matrix(0, math.radians(90), math.radians(90), "rxyz")
-
-                    transform = numpy.dot(transformation_matrix(t, q), offset)
-
-                    position = translation_from_matrix(transform)
-                    quaternion = quaternion_from_matrix(transform)
-
-                    if self.ctx.worlds()[self.world].scene().nodes().has(str(person.person_id)):
-                        try :
-                            delta_x = self.persons[str(person.person_id)].position.pose.position.x - position[0]
-                            delta_y = self.persons[str(person.person_id)].position.pose.position.y - position[1]
-                            delta_z = self.persons[str(person.person_id)].position.pose.position.z - position[2]
-                            delta_t = person_msg.header.stamp - self.persons[str(person.person_id)].last_observation.data
-
-                            self.persons[str(person.person_id)].velocity.position.x = delta_x / delta_t
-                            self.persons[str(person.person_id)].velocity.position.y = delta_y / delta_t
-                            self.persons[str(person.person_id)].velocity.position.z = delta_z / delta_t
-                        except Exception:
-                            pass
-
-                    self.persons[str(person.person_id)].position.pose.position.x = position[0]
-                    self.persons[str(person.person_id)].position.pose.position.y = position[1]
-                    self.persons[str(person.person_id)].position.pose.position.z = position[2]
-
-                    self.persons[str(person.person_id)].position.pose.orientation.x = quaternion[0]
-                    self.persons[str(person.person_id)].position.pose.orientation.y = quaternion[1]
-                    self.persons[str(person.person_id)].position.pose.orientation.z = quaternion[2]
-                    self.persons[str(person.person_id)].position.pose.orientation.w = quaternion[3]
-
-                    self.persons[str(person.person_id)].last_observation.data = person_msg.header.stamp
-                    self.changes.nodes_to_update.append(self.persons[str(person.person_id)])
 
 
             min_dist = 10000
@@ -190,17 +204,33 @@ class MultiModalHumanProvider(UwdsClient):
 
             for gaze in gaze_msg.data:
                 if str(gaze.person_id) in self.persons:
-                    if gaze.probability_looking_at_robot > LOOK_AT_THRESHOLD:
-                        self.currently_looking_at[str(gaze.person_id)] = "robot"
-                    else:
-                        if gaze.probability_looking_at_screen > LOOK_AT_THRESHOLD:
+                    if self.human_distances[str(gaze.person_id)] < ENGAGING_DISTANCE:
+
+                        if str(gaze.person_id) not in self.last_engagement_time:
+                            self.last_engagement_time[str(gaze.person_id)] = {}
+
+                        if gaze.probability_looking_at_robot > LOOK_AT_THRESHOLD:
                             self.currently_looking_at[str(gaze.person_id)] = "robot"
+                            self.last_engagement_time[str(gaze.person_id)]["robot"] = now
+                            self.currently_engaging_with[str(gaze.person_id)] = "robot"
                         else:
-                            for attention in gaze.attentions:
-                                if attention.target_id in self.persons:
-                                    if attention.probability_looking_at_target > LOOK_AT_THRESHOLD:
-                                        if str(attention.target_id) in self.alternate_id_map:
-                                            self.currently_looking_at[str(gaze.person_id)] = self.alternate_id_map[str(attention.target_id)]
+                            if gaze.probability_looking_at_screen > LOOK_AT_THRESHOLD:
+                                self.currently_looking_at[str(gaze.person_id)] = "robot"
+                                self.last_engagement_time[str(gaze.person_id)]["robot"] = now
+                                self.currently_engaging_with[str(gaze.person_id)] = "robot"
+                            else:
+                                for attention in gaze.attentions:
+                                    if attention.target_id in self.persons:
+                                        if attention.probability_looking_at_target > LOOK_AT_THRESHOLD:
+                                            if str(attention.target_id) in self.alternate_id_map:
+                                                self.currently_looking_at[str(gaze.person_id)] = self.alternate_id_map[str(attention.target_id)]
+                                                self.currently_engaging_with[str(gaze.person_id)] = self.alternate_id_map[str(attention.target_id)]
+                                                self.last_engagement_time[str(gaze.person_id)][self.alternate_id_map[str(attention.target_id)]] = now
+
+            for person_id in self.last_engagement_time:
+                for person2_id in self.last_engagement_time[person_id]:
+                    if (now - self.last_engagement_time[person_id][person2_id]).to_sec() < MIN_ENGAGEMENT_DURATION:
+                        self.currently_engaged_with[person_id] = person2_id
 
             min_dist = 10000
             min_id = None
@@ -300,32 +330,32 @@ class MultiModalHumanProvider(UwdsClient):
                         del self.predicates_map[id+"isClose"]
 
 
-        for id in self.currently_speaking_ids:
-            if id not in self.previously_speaking_ids:
-                # start fact
-                print("start: "+"human-"+id+" is speaking")
-                fact = Situation(description="human-"+id+" is speaking", type=FACT, id=str(uuid.uuid4().hex))
-                subject_property = Property(name="subject", data=id)
-                predicate_property = Property(name="predicate", data="isSpeaking")
-                fact.start.data = now
-                fact.end.data = rospy.Time(0)
-                fact.properties.append(subject_property)
-                fact.properties.append(predicate_property)
-                self.predicates_map[id+"isSpeaking"] = fact.id
-                self.changes.situations_to_update.append(fact)
+        # for id in self.currently_speaking_ids:
+        #     if id not in self.previously_speaking_ids:
+        #         # start fact
+        #         print("start: "+"human-"+id+" is speaking")
+        #         fact = Situation(description="human-"+id+" is speaking", type=FACT, id=str(uuid.uuid4().hex))
+        #         subject_property = Property(name="subject", data=id)
+        #         predicate_property = Property(name="predicate", data="isSpeaking")
+        #         fact.start.data = now
+        #         fact.end.data = rospy.Time(0)
+        #         fact.properties.append(subject_property)
+        #         fact.properties.append(predicate_property)
+        #         self.predicates_map[id+"isSpeaking"] = fact.id
+        #         self.changes.situations_to_update.append(fact)
 
-        for id in self.previously_speaking_ids:
-            if id not in self.currently_perceived_ids or id not in self.currently_speaking_ids:
-                # stop fact
-                if id+"isSpeaking" in self.predicates_map:
-                    if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isSpeaking"]):
-                        print("stop: "+"human-"+id+" is speaking")
-                        fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isSpeaking"]]
-                        fact.end.data = now
-                        fact.description = fact.description.replace("is","was")
-                        self.changes.situations_to_update.append(fact)
-                        self.last_speaking_id = fact.id
-                        del self.predicates_map[id+"isSpeaking"]
+        # for id in self.previously_speaking_ids:
+        #     if id not in self.currently_perceived_ids or id not in self.currently_speaking_ids:
+        #         # stop fact
+        #         if id+"isSpeaking" in self.predicates_map:
+        #             if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isSpeaking"]):
+        #                 print("stop: "+"human-"+id+" is speaking")
+        #                 fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isSpeaking"]]
+        #                 fact.end.data = now
+        #                 fact.description = fact.description.replace("is","was")
+        #                 self.changes.situations_to_update.append(fact)
+        #                 self.last_speaking_id = fact.id
+        #                 del self.predicates_map[id+"isSpeaking"]
 
         for subject_id in self.currently_looking_at.keys():
             object_id = self.currently_looking_at[subject_id]
@@ -333,17 +363,33 @@ class MultiModalHumanProvider(UwdsClient):
             if subject_id not in self.previously_looking_at:
                 start_fact = True
             else:
-                if object_id not in self.previously_looking_at[subject_id]:
-                    if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
+                if subject_id not in self.previously_looking_at:
+                    start_fact = True
+                else:
+                    if object_id != self.previously_looking_at[subject_id]:
                         start_fact = True
             if start_fact is True:
-                if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
-                    object = self.ctx.worlds()[self.world].scene().nodes()[object_id]
-                    print("start: "+"human-"+id+"is looking at "+object.name)
-                    fact = Situation(description="human is looking at "+object.name, type=ACTION, id=str(uuid.uuid4().hex))
+                if object_id != "robot":
+                    if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
+                        object = self.ctx.worlds()[self.world].scene().nodes()[object_id]
+                        print("start: "+"human-"+subject_id+" is looking at "+object.name)
+                        fact = Situation(description="human-"+subject_id+" is looking at "+object.name, type=ACTION, id=str(uuid.uuid4().hex))
+                        subject_property = Property(name="subject", data=subject_id)
+                        object_property = Property(name="object", data=object_id)
+                        predicate_property = Property(name="predicate", data="isLookingAt")
+                        fact.start.data = now
+                        fact.end.data = rospy.Time(0)
+                        fact.properties.append(subject_property)
+                        fact.properties.append(object_property)
+                        fact.properties.append(predicate_property)
+                        self.predicates_map[subject_id+"isLookingAt"+object_id] = fact.id
+                        self.changes.situations_to_update.append(fact)
+                else:
+                    print("start: "+"human-"+subject_id+" is looking at "+object_id)
+                    fact = Situation(description="human-"+subject_id+" is looking at "+object_id, type=ACTION, id=str(uuid.uuid4().hex))
                     subject_property = Property(name="subject", data=subject_id)
                     object_property = Property(name="object", data=object_id)
-                    predicate_property = Property(name="action", data="isLookingAt")
+                    predicate_property = Property(name="predicate", data="isLookingAt")
                     fact.start.data = now
                     fact.end.data = rospy.Time(0)
                     fact.properties.append(subject_property)
@@ -358,58 +404,171 @@ class MultiModalHumanProvider(UwdsClient):
             if subject_id not in self.currently_looking_at:
                 stop_fact = True
             else:
-                if object_id not in self.previously_looking_at[subject_id]:
-                    if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
-                        stop_fact = True
+                if object_id != self.previously_looking_at[subject_id]:
+                    stop_fact = True
             if stop_fact is True:
-                if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
-                    object = self.ctx.worlds()[self.world].scene().nodes()[object_id]
-                    print("stop: "+"human-"+id+"is looking at "+object.name)
-                    fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[subject_id+"isLookingAt"+object_id]]
-                    fact.end.data = now
-                    fact.description = fact.description.replace("is","was")
-                    self.changes.situations_to_delete(fact)
-                    del self.predicates_map[subject_id+"isLookingAt"+object_id]
+                #if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
+                    #object = self.ctx.worlds()[self.world].scene().nodes()[object_id]
+                print("stop: "+"human-"+subject_id+" is looking at "+object_id)
+                fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[subject_id+"isLookingAt"+object_id]]
+                fact.end.data = now
+                fact.description = fact.description.replace("is","was")
+                self.changes.situations_to_delete.append(fact.id)
+                del self.predicates_map[subject_id+"isLookingAt"+object_id]
 
-        for subject_id in self.currently_speaking_to.keys():
-            for object_id in self.currently_speaking_to[subject_id]:
-                start_fact = False
-                if subject_id not in self.previously_speaking_to:
+
+        for subject_id in self.currently_engaging_with.keys():
+            object_id = self.currently_engaging_with[subject_id]
+            start_fact = False
+            if subject_id not in self.previously_engaging_with:
+                start_fact = True
+            else:
+                if object_id != self.previously_engaging_with[subject_id]:
                     start_fact = True
+            if start_fact is True:
+                if object_id != "robot":
+                    if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
+                        print("start: "+"human-"+subject_id+" is engaging with "+object.name)
+                        fact = Situation(description="human-"+subject_id+" is engaging with "+object.name, type=ACTION, id=str(uuid.uuid4().hex))
+                        subject_property = Property(name="subject", data=subject_id)
+                        object_property = Property(name="object", data=object_id)
+                        predicate_property = Property(name="predicate", data="isEngagingWith")
+                        fact.start.data = now
+                        fact.end.data = rospy.Time(0)
+                        fact.properties.append(subject_property)
+                        fact.properties.append(object_property)
+                        fact.properties.append(predicate_property)
+                        self.predicates_map[subject_id+"isEngagingWith"+object_id] = fact.id
+                        self.changes.situations_to_update.append(fact)
                 else:
-                    if object_id not in self.previously_speaking_to[subject_id]:
-                        if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
-                            start_fact = True
-                if start_fact is True:
-                    object = self.ctx.worlds()[self.world].scene().nodes()[object_id]
-                    fact = Situation(description="human is speaking to "+object.name, type=ACTION, id=str(uuid.uuid4().hex))
+                    print("start: "+"human-"+subject_id+" is engaging with "+object_id)
+                    fact = Situation(description="human"+subject_id+" is engaging with "+object_id, type=ACTION, id=str(uuid.uuid4().hex))
                     subject_property = Property(name="subject", data=subject_id)
                     object_property = Property(name="object", data=object_id)
-                    predicate_property = Property(name="action", data="isSpeakingTo")
+                    predicate_property = Property(name="predicate", data="isEngagingWith")
                     fact.start.data = now
-                    fact.description = fact.description.replace("is","was")
                     fact.end.data = rospy.Time(0)
                     fact.properties.append(subject_property)
                     fact.properties.append(object_property)
                     fact.properties.append(predicate_property)
-                    self.predicates_map[subject_id+"isSpeakingTo"+object_id] = fact.id
+                    self.predicates_map[subject_id+"isEngagingWith"+object_id] = fact.id
                     self.changes.situations_to_update.append(fact)
 
-        for subject_id in self.previously_speaking_to.keys():
-            for object_id in self.previously_speaking_to[subject_id]:
-                stop_fact = False
-                if subject_id not in currently_speaking_at:
+        for subject_id in self.previously_engaging_with.keys():
+            object_id = self.previously_engaging_with[subject_id]
+            stop_fact = False
+            if subject_id not in self.currently_engaging_with:
+                stop_fact = True
+            else:
+                if object_id != self.currently_engaging_with[subject_id]:
                     stop_fact = True
+            if stop_fact is True:
+                #if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
+                #object = self.ctx.worlds()[self.world].scene().nodes()[object_id]
+                print("stop: human-"+subject_id+" is engaging with "+object_id)
+                fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[subject_id+"isEngagingWith"+object_id]]
+                fact.end.data = now
+                fact.description = fact.description.replace("is","was")
+                self.changes.situations_to_delete.append(fact.id)
+                del self.predicates_map[subject_id+"isEngagingWith"+object_id]
+
+
+        for subject_id in self.currently_engaged_with.keys():
+            object_id = self.currently_engaged_with[subject_id]
+            start_fact = False
+            if subject_id not in self.previously_engaged_with:
+                start_fact = True
+            else:
+                if object_id not in self.previously_engaged_with[subject_id]:
+                    start_fact = True
+            if start_fact is True:
+                if object_id != "robot":
+                    if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
+                        print("start: "+"human-"+subject_id+" is engaged with "+object.name)
+                        fact = Situation(description="human-"+subject_id+" is engaged with "+object.name, type=ACTION, id=str(uuid.uuid4().hex))
+                        subject_property = Property(name="subject", data=subject_id)
+                        object_property = Property(name="object", data=object_id)
+                        predicate_property = Property(name="predicate", data="isEngagedWith")
+                        fact.start.data = now
+                        fact.end.data = rospy.Time(0)
+                        fact.properties.append(subject_property)
+                        fact.properties.append(object_property)
+                        fact.properties.append(predicate_property)
+                        self.predicates_map[subject_id+"isEngagedWith"+object_id] = fact.id
+                        self.changes.situations_to_update.append(fact)
                 else:
-                    if object_id not in self.previously_speaking_to[subject_id]:
-                        if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
-                            stop_fact = True
-                if stop_fact is True:
-                    fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[subject_id+"isSpeakingTo"+object_id]]
-                    fact.end.data = now
-                    fact.description = fact.description.replace("is","was")
-                    self.changes.situations_to_update(fact)
-                    del self.predicates_map[subject_id+"isSpeakingTo"+object_id]
+                    print("start: "+"human-"+subject_id+" is engaged with "+object_id)
+                    fact = Situation(description="human"+subject_id+" is engaged with "+object_id, type=ACTION, id=str(uuid.uuid4().hex))
+                    subject_property = Property(name="subject", data=subject_id)
+                    object_property = Property(name="object", data=object_id)
+                    predicate_property = Property(name="predicate", data="isEngagedWith")
+                    fact.start.data = now
+                    fact.end.data = rospy.Time(0)
+                    fact.properties.append(subject_property)
+                    fact.properties.append(object_property)
+                    fact.properties.append(predicate_property)
+                    self.predicates_map[subject_id+"isEngagedWith"+object_id] = fact.id
+                    self.changes.situations_to_update.append(fact)
+
+        for subject_id in self.previously_engaged_with.keys():
+            object_id = self.previously_engaged_with[subject_id]
+            stop_fact = False
+            if subject_id not in self.currently_engaged_with:
+                stop_fact = True
+            else:
+                if object_id != self.currently_engaged_with[subject_id]:
+                    #if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
+                    stop_fact = True
+            if stop_fact is True:
+                #if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
+                #object = self.ctx.worlds()[self.world].scene().nodes()[object_id]
+                print("stop: "+"human-"+subject_id+" is engaged with "+object_id)
+                fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[subject_id+"isEngagedWith"+object_id]]
+                fact.end.data = now
+                fact.description = fact.description.replace("is","was")
+                self.changes.situations_to_delete.append(fact.id)
+                del self.predicates_map[subject_id+"isEngagedWith"+object_id]
+
+
+        # for subject_id in self.currently_speaking_to.keys():
+        #     for object_id in self.currently_speaking_to[subject_id]:
+        #         start_fact = False
+        #         if subject_id not in self.previously_speaking_to:
+        #             start_fact = True
+        #         else:
+        #             if object_id not in self.previously_speaking_to[subject_id]:
+        #                 if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
+        #                     start_fact = True
+        #         if start_fact is True:
+        #             object = self.ctx.worlds()[self.world].scene().nodes()[object_id]
+        #             fact = Situation(description="human is speaking to "+object.name, type=ACTION, id=str(uuid.uuid4().hex))
+        #             subject_property = Property(name="subject", data=subject_id)
+        #             object_property = Property(name="object", data=object_id)
+        #             predicate_property = Property(name="action", data="isSpeakingTo")
+        #             fact.start.data = now
+        #             fact.description = fact.description.replace("is","was")
+        #             fact.end.data = rospy.Time(0)
+        #             fact.properties.append(subject_property)
+        #             fact.properties.append(object_property)
+        #             fact.properties.append(predicate_property)
+        #             self.predicates_map[subject_id+"isSpeakingTo"+object_id] = fact.id
+        #             self.changes.situations_to_update.append(fact)
+        #
+        # for subject_id in self.previously_speaking_to.keys():
+        #     for object_id in self.previously_speaking_to[subject_id]:
+        #         stop_fact = False
+        #         if subject_id not in currently_speaking_at:
+        #             stop_fact = True
+        #         else:
+        #             if object_id not in self.previously_speaking_to[subject_id]:
+        #                 if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
+        #                     stop_fact = True
+        #         if stop_fact is True:
+        #             fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[subject_id+"isSpeakingTo"+object_id]]
+        #             fact.end.data = now
+        #             fact.description = fact.description.replace("is","was")
+        #             self.changes.situations_to_update(fact)
+        #             del self.predicates_map[subject_id+"isSpeakingTo"+object_id]
 
         ids_overrided = []
         #print("local timeline size : "+str(len(self.ctx.worlds()[self.world].timeline().situations())))
@@ -449,7 +608,7 @@ class MultiModalHumanProvider(UwdsClient):
 
         for node in self.ctx.worlds()[self.world].scene().nodes():
             if node.id in self.alternate_id_map:
-                if self.alternate_id_map[node.id] != node.id or node.last_update.data + rospy.Duration(5.0) < rospy.Time.now():
+                if self.alternate_id_map[node.id] != node.id or node.last_observation.data + rospy.Duration(5.0) < rospy.Time.now():
                     print "remove node : human-"+node.id
                     #self.clear_local_data(node.id)
                     if node.id in self.nb_detection:
@@ -463,6 +622,9 @@ class MultiModalHumanProvider(UwdsClient):
         self.previously_speaking_ids = self.currently_speaking_ids
         self.previously_speaking_to = self.currently_speaking_to
         self.previously_perceived_ids = self.currently_perceived_ids
+
+        self.previously_engaging_with = self.currently_engaging_with
+        self.previously_engaged_with = self.currently_engaged_with
 
         #print ("nb nodes updated : "+str(len(changes.nodes_to_update)))
         #print ("nb situations updated : "+str(len(changes.situations_to_update)))

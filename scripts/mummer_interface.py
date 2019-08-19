@@ -79,7 +79,6 @@ class MummerInterface(ReconfigurableClient):
             header = Header()
             header.frame_id = self.global_frame_id
             header.stamp = rospy.Time.now()
-            self.publish_world_facts(self.input_worlds[0], header)
             #self.ctx.worlds()[self.input_worlds[0]].scene().nodes()._lock()
             for node in self.ctx.worlds()[self.input_worlds[0]].scene().nodes():
                 t = geometry_msgs.msg.TransformStamped()
@@ -95,6 +94,7 @@ class MummerInterface(ReconfigurableClient):
                 t.transform.rotation.w = node.position.pose.orientation.w
                 self._tf_broadcaster.sendTransform(t)
             #self.ctx.worlds()[self.input_worlds[0]].scene().nodes()._unlock()
+            self.publish_world_facts(self.input_worlds[0], header)
 
     def publish_world_facts(self, world_name, header):
         # publish facts
