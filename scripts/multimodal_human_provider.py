@@ -20,13 +20,14 @@ from geometry_msgs.msg import PointStamped, Point
 
 import tf2_ros
 
+
 DEFAULT_CLIP_PLANE_NEAR = 0.2
 DEFAULT_CLIP_PLANE_FAR = 1000.0
 DEFAULT_HORIZONTAL_FOV = 60.0
 DEFAULT_ASPECT = 1.33333
 
 LOOK_AT_THRESHOLD = 0.4
-ENGAGING_DISTANCE = 1.5
+ENGAGING_DISTANCE = 2.0
 ENGAGING_MIN_TIME = 1.0
 
 NB_MIN_DETECTION = 9
@@ -35,7 +36,10 @@ MAX_DIST = 2.5
 CLOSE_MAX_DISTANCE = 1.0
 NEAR_MAX_DISTANCE = 2.0
 
-MIN_ENGAGEMENT_DURATION = 3.0
+PERSON_PERSISTENCE = 5.0
+
+MIN_ENGAGEMENT_DURATION = 4.0
+
 
 def transformation_matrix(t, q):
     translation_mat = translation_matrix(t)
@@ -74,9 +78,19 @@ class MultiModalHumanProvider(UwdsClient):
 
         self.world = rospy.get_param("~output_world", "robot/humans")
 
-        self.person_of_interest_sub = rospy.Subscriber("person_of_interest", Int32, self.handle_person)
+        self.look_at_threshold = rospy.get_param("look_at_threshold", LOOK_AT_THRESHOLD)
+        self.engaging_distance = rospy.get_param("engaging_distance", ENGAGING_DISTANCE)
+        self.engaging_min_time = rospy.get_param("engaging_min_time", ENGAGING_MIN_TIME)
+        self.nb_min_detection = rospy.get_param("nb_min_detection", NB_MIN_DETECTION)
+        self.max_dist = rospy.get_param("max_dist", MAX_DIST)
+        self.close_max_distance = rospy.get_param("close_max_distance", CLOSE_MAX_DISTANCE)
+        self.near_max_distance = rospy.get_param("near_max_distance", NEAR_MAX_DISTANCE)
+        self.min_engagement_duration = rospy.get_param("min_engagement_duration", MIN_ENGAGEMENT_DURATION)
+        self.person_persistence = rospy.get_param("person_persistence", PERSON_PERSISTENCE)
 
-        self.person_of_interest = None
+        # self.person_of_interest_sub = rospy.Subscriber("person_of_interest", Int32, self.handle_person)
+
+        # self.person_of_interest = None
         self.last_update_person = None
 
         self.predicates_map = {}
@@ -89,11 +103,20 @@ class MultiModalHumanProvider(UwdsClient):
 
 
 
-    def handle_person(self, msg):
-        self.person_of_interest = str(msg.data)
-        self.last_update_person = rospy.Time.now()
+    # def handle_person(self, msg):
+    #     self.person_of_interest = str(msg.data)
+    #     self.last_update_person = rospy.Time.now()
 
     def callback(self, gaze_msg, voice_msg, person_msg):
+        self.look_at_threshold = rospy.get_param("look_at_threshold", LOOK_AT_THRESHOLD)
+        self.engaging_distance = rospy.get_param("engaging_distance", ENGAGING_DISTANCE)
+        self.engaging_min_time = rospy.get_param("engaging_min_time", ENGAGING_MIN_TIME)
+        self.nb_min_detection = rospy.get_param("nb_min_detection", NB_MIN_DETECTION)
+        self.max_dist = rospy.get_param("max_dist", MAX_DIST)
+        self.close_max_distance = rospy.get_param("close_max_distance", CLOSE_MAX_DISTANCE)
+        self.near_max_distance = rospy.get_param("near_max_distance", NEAR_MAX_DISTANCE)
+        self.min_engagement_duration = rospy.get_param("min_engagement_duration", MIN_ENGAGEMENT_DURATION)
+        self.person_persistence = rospy.get_param("person_persistence", PERSON_PERSISTENCE)
         #print "perception callback called"
 
         #trans = self.tfBuffer.lookup_transform(turtle_name, 'turtle1', rospy.Time())
@@ -107,13 +130,34 @@ class MultiModalHumanProvider(UwdsClient):
 
         self.currently_perceived_ids = []
         self.currently_near_ids = []
+
         self.currently_close_ids = []
         self.currently_speaking_ids = []
         self.currently_looking_at = {}
         self.currently_speaking_to = {}
 
+        self.start_engaging_time = {}
+
         self.currently_engaging_with = {}
         self.currently_engaged_with = {}
+
+        min_dist = float("inf")
+        min_id_0 = None
+        i = 0
+        min_it = None
+        for person in person_msg.data:
+            if person.head_distance < self.engaging_distance:
+                if person.head_distance < min_dist:
+                    min_dist = person.head_distance
+                    min_id_0 = person.person_id
+                    min_it = i
+            i += 1
+        if min_id_0 is not None:
+            person_msg.data[min_it].person_id = 0
+
+            for gaze in gaze_msg.data:
+                if gaze.person_id == min_id_0:
+                    gaze.person_id = 0
 
         if len(person_msg.data) > 0:
             for person in person_msg.data:
@@ -128,8 +172,8 @@ class MultiModalHumanProvider(UwdsClient):
                         min_id = id
                 self.alternate_id_map[str(person.person_id)] = str(min_id)
 
-                if self.nb_detection[str(person.person_id)] > NB_MIN_DETECTION:
-                    if person.head_distance < MAX_DIST:
+                if self.nb_detection[str(person.person_id)] > self.nb_min_detection:
+                    if person.head_distance < self.max_dist:
                         if str(person.person_id) not in self.persons:
                             new_node = Node()
                             new_node.name = "human-"+str(person.person_id)
@@ -187,41 +231,41 @@ class MultiModalHumanProvider(UwdsClient):
                         self.changes.nodes_to_update.append(self.persons[str(person.person_id)])
 
 
-            min_dist = 10000
-            min_id = None
-            for voice in voice_msg.data:
-                if str(voice.person_id) in self.persons:
-                    if voice.is_speaking:
-                        self.currently_speaking_ids.append(str(voice.person_id))
-                        if str(voice.person_id) in self.distances:
-                            if self.human_distances[str(voice.person_id)] < min_dist:
-                                min_dist = self.human_distances[str(voice.person_id)]
-                                min_id = voice.person_id
-            if min_id is not None:
-                voice_attention_point = PointStamped()
-                voice_attention_point.header.frame_id = str(min_id)
-                voice_attention_point.point = Point(0, 0, 0)
+            # min_dist = 10000
+            # min_id = None
+            # for voice in voice_msg.data:
+            #     if str(voice.person_id) in self.persons:
+            #         if voice.is_speaking:
+            #             self.currently_speaking_ids.append(str(voice.person_id))
+            #             if str(voice.person_id) in self.distances:
+            #                 if self.human_distances[str(voice.person_id)] < min_dist:
+            #                     min_dist = self.human_distances[str(voice.person_id)]
+            #                     min_id = voice.person_id
+            # if min_id is not None:
+            #     voice_attention_point = PointStamped()
+            #     voice_attention_point.header.frame_id = str(min_id)
+            #     voice_attention_point.point = Point(0, 0, 0)
 
             for gaze in gaze_msg.data:
                 if str(gaze.person_id) in self.persons:
-                    if self.human_distances[str(gaze.person_id)] < ENGAGING_DISTANCE:
+                    if self.human_distances[str(gaze.person_id)] < self.engaging_distance:
 
                         if str(gaze.person_id) not in self.last_engagement_time:
                             self.last_engagement_time[str(gaze.person_id)] = {}
 
-                        if gaze.probability_looking_at_robot > LOOK_AT_THRESHOLD:
+                        if gaze.probability_looking_at_robot > self.look_at_threshold:
                             self.currently_looking_at[str(gaze.person_id)] = "robot"
                             self.last_engagement_time[str(gaze.person_id)]["robot"] = now
                             self.currently_engaging_with[str(gaze.person_id)] = "robot"
                         else:
-                            if gaze.probability_looking_at_screen > LOOK_AT_THRESHOLD:
+                            if gaze.probability_looking_at_screen > self.look_at_threshold:
                                 self.currently_looking_at[str(gaze.person_id)] = "robot"
                                 self.last_engagement_time[str(gaze.person_id)]["robot"] = now
                                 self.currently_engaging_with[str(gaze.person_id)] = "robot"
                             else:
                                 for attention in gaze.attentions:
                                     if attention.target_id in self.persons:
-                                        if attention.probability_looking_at_target > LOOK_AT_THRESHOLD:
+                                        if attention.probability_looking_at_target > self.look_at_threshold:
                                             if str(attention.target_id) in self.alternate_id_map:
                                                 self.currently_looking_at[str(gaze.person_id)] = self.alternate_id_map[str(attention.target_id)]
                                                 self.currently_engaging_with[str(gaze.person_id)] = self.alternate_id_map[str(attention.target_id)]
@@ -229,25 +273,28 @@ class MultiModalHumanProvider(UwdsClient):
 
             for person_id in self.last_engagement_time:
                 for person2_id in self.last_engagement_time[person_id]:
-                    if (now - self.last_engagement_time[person_id][person2_id]).to_sec() < MIN_ENGAGEMENT_DURATION:
-                        self.currently_engaged_with[person_id] = person2_id
+                    if (now - self.last_engagement_time[person_id][person2_id]).to_sec() < self.min_engagement_duration:
+                        if person_id+"isEngagingWith"+person2_id in self.predicates_map:
+                            fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[person_id+"isEngagingWith"+person2_id]]
+                            if (now - fact.start.data).to_sec() > self.engaging_min_time:
+                                self.currently_engaged_with[person_id] = person2_id
 
-            min_dist = 10000
-            min_id = None
-            for id, dist in self.human_distances.items():
-                if id in self.currently_perceived_ids:
-                    if dist < NEAR_MAX_DISTANCE:
-                        if min_dist > dist:
-                            min_dist = dist
-                            min_id = id
-                        if dist < CLOSE_MAX_DISTANCE:
-                            self.currently_close_ids.append(id)
-                        else:
-                            self.currently_near_ids.append(id)
-            if min_id is not None:
-                voice_attention_point = PointStamped()
-                voice_attention_point.header.frame_id = str(min_id)
-                voice_attention_point.point = Point(0, 0, 0)
+            # min_dist = 10000
+            # min_id = None
+            # for id, dist in self.human_distances.items():
+            #     if id in self.currently_perceived_ids:
+            #         if dist < NEAR_MAX_DISTANCE:
+            #             if min_dist > dist:
+            #                 min_dist = dist
+            #                 min_id = id
+            #             if dist < CLOSE_MAX_DISTANCE:
+            #                 self.currently_close_ids.append(id)
+            #             else:
+            #                 self.currently_near_ids.append(id)
+            # if min_id is not None:
+            #     voice_attention_point = PointStamped()
+            #     voice_attention_point.header.frame_id = str(min_id)
+            #     voice_attention_point.point = Point(0, 0, 0)
 
         for id in self.currently_perceived_ids:
             if id not in self.previously_perceived_ids:
@@ -573,9 +620,9 @@ class MultiModalHumanProvider(UwdsClient):
         ids_overrided = []
         #print("local timeline size : "+str(len(self.ctx.worlds()[self.world].timeline().situations())))
         to_repair = []
-        if self.person_of_interest is not None:
-            if rospy.Time().now() - self.last_update_person > rospy.Duration(2.0):
-                self.person_of_interest = None
+        # if self.person_of_interest is not None:
+        #     if rospy.Time().now() - self.last_update_person > rospy.Duration(2.0):
+        #         self.person_of_interest = None
 
         for situation in self.ctx.worlds()[self.world].timeline().situations():
             updated = False
@@ -608,7 +655,7 @@ class MultiModalHumanProvider(UwdsClient):
 
         for node in self.ctx.worlds()[self.world].scene().nodes():
             if node.id in self.alternate_id_map:
-                if self.alternate_id_map[node.id] != node.id or node.last_observation.data + rospy.Duration(5.0) < rospy.Time.now():
+                if self.alternate_id_map[node.id] != node.id or node.last_observation.data + rospy.Duration(self.person_persistence) < rospy.Time.now():
                     print "remove node : human-"+node.id
                     #self.clear_local_data(node.id)
                     if node.id in self.nb_detection:
