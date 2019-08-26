@@ -28,7 +28,7 @@ DEFAULT_ASPECT = 1.33333
 
 LOOK_AT_THRESHOLD = 0.4
 ENGAGING_DISTANCE = 2.0
-ENGAGING_MIN_TIME = 1.0
+ENGAGING_MIN_TIME = 1.5
 
 NB_MIN_DETECTION = 9
 MAX_DIST = 2.5
@@ -36,9 +36,9 @@ MAX_DIST = 2.5
 CLOSE_MAX_DISTANCE = 1.0
 NEAR_MAX_DISTANCE = 2.0
 
-PERSON_PERSISTENCE = 5.0
+PERSON_PERSISTENCE = 10.0
 
-MIN_ENGAGEMENT_DURATION = 4.0
+MIN_ENGAGEMENT_DURATION = 6.0
 
 
 def transformation_matrix(t, q):
@@ -78,15 +78,15 @@ class MultiModalHumanProvider(UwdsClient):
 
         self.world = rospy.get_param("~output_world", "robot/humans")
 
-        self.look_at_threshold = rospy.get_param("look_at_threshold", LOOK_AT_THRESHOLD)
-        self.engaging_distance = rospy.get_param("engaging_distance", ENGAGING_DISTANCE)
-        self.engaging_min_time = rospy.get_param("engaging_min_time", ENGAGING_MIN_TIME)
-        self.nb_min_detection = rospy.get_param("nb_min_detection", NB_MIN_DETECTION)
-        self.max_dist = rospy.get_param("max_dist", MAX_DIST)
-        self.close_max_distance = rospy.get_param("close_max_distance", CLOSE_MAX_DISTANCE)
-        self.near_max_distance = rospy.get_param("near_max_distance", NEAR_MAX_DISTANCE)
-        self.min_engagement_duration = rospy.get_param("min_engagement_duration", MIN_ENGAGEMENT_DURATION)
-        self.person_persistence = rospy.get_param("person_persistence", PERSON_PERSISTENCE)
+        self.look_at_threshold = rospy.get_param("uwds_mummer/look_at_threshold", LOOK_AT_THRESHOLD)
+        self.engaging_distance = rospy.get_param("uwds_mummer/engaging_distance", ENGAGING_DISTANCE)
+        self.engaging_min_time = rospy.get_param("uwds_mummer/engaging_min_time", ENGAGING_MIN_TIME)
+        self.nb_min_detection = rospy.get_param("uwds_mummer/nb_min_detection", NB_MIN_DETECTION)
+        self.max_dist = rospy.get_param("uwds_mummer/max_dist", MAX_DIST)
+        self.close_max_distance = rospy.get_param("uwds_mummer/close_max_distance", CLOSE_MAX_DISTANCE)
+        self.near_max_distance = rospy.get_param("uwds_mummer/near_max_distance", NEAR_MAX_DISTANCE)
+        self.min_engagement_duration = rospy.get_param("uwds_mummer/min_engagement_duration", MIN_ENGAGEMENT_DURATION)
+        self.person_persistence = rospy.get_param("uwds_mummer/person_persistence", PERSON_PERSISTENCE)
 
         # self.person_of_interest_sub = rospy.Subscriber("person_of_interest", Int32, self.handle_person)
 
@@ -108,15 +108,15 @@ class MultiModalHumanProvider(UwdsClient):
     #     self.last_update_person = rospy.Time.now()
 
     def callback(self, gaze_msg, voice_msg, person_msg):
-        self.look_at_threshold = rospy.get_param("look_at_threshold", LOOK_AT_THRESHOLD)
-        self.engaging_distance = rospy.get_param("engaging_distance", ENGAGING_DISTANCE)
-        self.engaging_min_time = rospy.get_param("engaging_min_time", ENGAGING_MIN_TIME)
-        self.nb_min_detection = rospy.get_param("nb_min_detection", NB_MIN_DETECTION)
-        self.max_dist = rospy.get_param("max_dist", MAX_DIST)
-        self.close_max_distance = rospy.get_param("close_max_distance", CLOSE_MAX_DISTANCE)
-        self.near_max_distance = rospy.get_param("near_max_distance", NEAR_MAX_DISTANCE)
-        self.min_engagement_duration = rospy.get_param("min_engagement_duration", MIN_ENGAGEMENT_DURATION)
-        self.person_persistence = rospy.get_param("person_persistence", PERSON_PERSISTENCE)
+        # self.look_at_threshold = rospy.get_param("look_at_threshold", LOOK_AT_THRESHOLD)
+        # self.engaging_distance = rospy.get_param("engaging_distance", ENGAGING_DISTANCE)
+        # self.engaging_min_time = rospy.get_param("engaging_min_time", ENGAGING_MIN_TIME)
+        # self.nb_min_detection = rospy.get_param("nb_min_detection", NB_MIN_DETECTION)
+        # self.max_dist = rospy.get_param("max_dist", MAX_DIST)
+        # self.close_max_distance = rospy.get_param("close_max_distance", CLOSE_MAX_DISTANCE)
+        # self.near_max_distance = rospy.get_param("near_max_distance", NEAR_MAX_DISTANCE)
+        # self.min_engagement_duration = rospy.get_param("min_engagement_duration", MIN_ENGAGEMENT_DURATION)
+        # self.person_persistence = rospy.get_param("person_persistence", PERSON_PERSISTENCE)
         #print "perception callback called"
 
         #trans = self.tfBuffer.lookup_transform(turtle_name, 'turtle1', rospy.Time())
@@ -273,11 +273,15 @@ class MultiModalHumanProvider(UwdsClient):
 
             for person_id in self.last_engagement_time:
                 for person2_id in self.last_engagement_time[person_id]:
-                    if (now - self.last_engagement_time[person_id][person2_id]).to_sec() < self.min_engagement_duration:
-                        if person_id+"isEngagingWith"+person2_id in self.predicates_map:
-                            fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[person_id+"isEngagingWith"+person2_id]]
-                            if (now - fact.start.data).to_sec() > self.engaging_min_time:
+                    if person_id+"isEngagingWith"+person2_id in self.predicates_map:
+                        fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[person_id+"isEngagingWith"+person2_id]]
+                        if (now - fact.start.data).to_sec() > self.engaging_min_time:
+                            self.currently_engaged_with[person_id] = person2_id
+                    else:
+                        if person_id+"isEngagedWith"+person2_id in self.predicates_map:
+                            if (now - self.last_engagement_time[person_id][person2_id]).to_sec() < self.min_engagement_duration:
                                 self.currently_engaged_with[person_id] = person2_id
+
 
             # min_dist = 10000
             # min_id = None
@@ -299,7 +303,7 @@ class MultiModalHumanProvider(UwdsClient):
         for id in self.currently_perceived_ids:
             if id not in self.previously_perceived_ids:
                 # start fact
-                print("start: robot is perceiving human-"+id)
+                # print("start: robot is perceiving human-"+id)
                 fact = Situation(description="robot is perceiving human-"+id, type=FACT, id=str(uuid.uuid4().hex))
                 subject_property = Property(name="subject", data="robot")
                 object_property = Property(name="object", data=id)
@@ -317,7 +321,7 @@ class MultiModalHumanProvider(UwdsClient):
                 # stop fact
                 if id+"isPerceiving" in self.predicates_map:
                     if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isPerceiving"]):
-                        print("stop: "+"human-"+id+" is perceived")
+                        # print("stop: "+"human-"+id+" is perceived")
                         fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isPerceiving"]]
                         fact.end.data = now
                         fact.description = fact.description.replace("is","was")
@@ -327,7 +331,7 @@ class MultiModalHumanProvider(UwdsClient):
         for id in self.currently_near_ids:
             if id not in self.previously_near_ids:
                 # start fact
-                print("start: "+"human-"+id+" is near")
+                # print("start: "+"human-"+id+" is near")
                 fact = Situation(description="human-"+str(id)+" is near", type=FACT, id=str(uuid.uuid4().hex))
                 subject_property = Property(name="subject", data=id)
                 predicate_property = Property(name="predicate", data="isNear")
@@ -353,7 +357,7 @@ class MultiModalHumanProvider(UwdsClient):
         for id in self.currently_close_ids:
             if id not in self.previously_close_ids:
                 # start fact
-                print "start: "+"human-"+id+" is close"
+                # print "start: "+"human-"+id+" is close"
                 fact = Situation(description="human-"+id+" is close", type=FACT, id=str(uuid.uuid4().hex))
                 subject_property = Property(name="subject", data=id)
                 predicate_property = Property(name="predicate", data="isClose")
@@ -419,7 +423,7 @@ class MultiModalHumanProvider(UwdsClient):
                 if object_id != "robot":
                     if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
                         object = self.ctx.worlds()[self.world].scene().nodes()[object_id]
-                        print("start: "+"human-"+subject_id+" is looking at "+object.name)
+                        # print("start: "+"human-"+subject_id+" is looking at "+object.name)
                         fact = Situation(description="human-"+subject_id+" is looking at "+object.name, type=ACTION, id=str(uuid.uuid4().hex))
                         subject_property = Property(name="subject", data=subject_id)
                         object_property = Property(name="object", data=object_id)
@@ -432,7 +436,7 @@ class MultiModalHumanProvider(UwdsClient):
                         self.predicates_map[subject_id+"isLookingAt"+object_id] = fact.id
                         self.changes.situations_to_update.append(fact)
                 else:
-                    print("start: "+"human-"+subject_id+" is looking at "+object_id)
+                    # print("start: "+"human-"+subject_id+" is looking at "+object_id)
                     fact = Situation(description="human-"+subject_id+" is looking at "+object_id, type=ACTION, id=str(uuid.uuid4().hex))
                     subject_property = Property(name="subject", data=subject_id)
                     object_property = Property(name="object", data=object_id)
@@ -456,7 +460,7 @@ class MultiModalHumanProvider(UwdsClient):
             if stop_fact is True:
                 #if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
                     #object = self.ctx.worlds()[self.world].scene().nodes()[object_id]
-                print("stop: "+"human-"+subject_id+" is looking at "+object_id)
+                # print("stop: "+"human-"+subject_id+" is looking at "+object_id)
                 fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[subject_id+"isLookingAt"+object_id]]
                 fact.end.data = now
                 fact.description = fact.description.replace("is","was")
@@ -475,7 +479,7 @@ class MultiModalHumanProvider(UwdsClient):
             if start_fact is True:
                 if object_id != "robot":
                     if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
-                        print("start: "+"human-"+subject_id+" is engaging with "+object.name)
+                        # print("start: "+"human-"+subject_id+" is engaging with "+object.name)
                         fact = Situation(description="human-"+subject_id+" is engaging with "+object.name, type=ACTION, id=str(uuid.uuid4().hex))
                         subject_property = Property(name="subject", data=subject_id)
                         object_property = Property(name="object", data=object_id)
@@ -488,7 +492,7 @@ class MultiModalHumanProvider(UwdsClient):
                         self.predicates_map[subject_id+"isEngagingWith"+object_id] = fact.id
                         self.changes.situations_to_update.append(fact)
                 else:
-                    print("start: "+"human-"+subject_id+" is engaging with "+object_id)
+                    # print("start: "+"human-"+subject_id+" is engaging with "+object_id)
                     fact = Situation(description="human"+subject_id+" is engaging with "+object_id, type=ACTION, id=str(uuid.uuid4().hex))
                     subject_property = Property(name="subject", data=subject_id)
                     object_property = Property(name="object", data=object_id)
@@ -512,7 +516,7 @@ class MultiModalHumanProvider(UwdsClient):
             if stop_fact is True:
                 #if self.ctx.worlds()[self.world].scene().nodes().has(object_id):
                 #object = self.ctx.worlds()[self.world].scene().nodes()[object_id]
-                print("stop: human-"+subject_id+" is engaging with "+object_id)
+                # print("stop: human-"+subject_id+" is engaging with "+object_id)
                 fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[subject_id+"isEngagingWith"+object_id]]
                 fact.end.data = now
                 fact.description = fact.description.replace("is","was")
@@ -575,6 +579,7 @@ class MultiModalHumanProvider(UwdsClient):
                 fact.description = fact.description.replace("is","was")
                 self.changes.situations_to_delete.append(fact.id)
                 del self.predicates_map[subject_id+"isEngagedWith"+object_id]
+                del self.last_engagement_time[subject_id][object_id]
 
 
         # for subject_id in self.currently_speaking_to.keys():

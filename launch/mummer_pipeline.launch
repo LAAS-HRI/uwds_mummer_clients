@@ -7,15 +7,15 @@
   <arg name="nodelet_manager" default="mummer_nodelet_manager"/>
   <arg name="launch-prefix" default=""/>
 
-  <param name="look_at_threshold" type="double" value="0.4" />
-  <param name="engaging_distance" type="double" value="2.0" />
-  <param name="engaging_min_time" type="double" value="1.0" />
-  <param name="nb_min_detection" type="int" value="9" />
-  <param name="max_dist" type="double" value="2.5" />
-  <param name="close_max_distance" type="double" value="1.0" />
-  <param name="near_max_distance" type="double" value="2.0" />
-  <param name="min_engagement_duration" type="double" value="4.0" />
-  <param name="person_persistence" type="double" value="5.0" />
+  <param name="uwds_mummer/look_at_threshold" type="double" value="0.4" />
+  <param name="uwds_mummer/engaging_distance" type="double" value="2.0" />
+  <param name="uwds_mummer/engaging_min_time" type="double" value="1.0" />
+  <param name="uwds_mummer/nb_min_detection" type="int" value="9" />
+  <param name="uwds_mummer/max_dist" type="double" value="2.5" />
+  <param name="uwds_mummer/close_max_distance" type="double" value="1.0" />
+  <param name="uwds_mummer/near_max_distance" type="double" value="2.0" />
+  <param name="uwds_mummer/min_engagement_duration" type="double" value="6.0" />
+  <param name="uwds_mummer/person_persistence" type="double" value="10.0" />
 
   <!-- FAKE LOCALIZATION + PEPPER RELATED -->
   <!--<include file="$(find uwds_mummer_clients)/launch/fake_localization.launch"/>-->
