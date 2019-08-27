@@ -16,7 +16,7 @@ from pyuwds.types.situations import FACT, ACTION
 from pyuwds.uwds import PROVIDER
 from pyuwds.uwds_client import UwdsClient
 from perception_msgs.msg import GazeInfoArray, VoiceActivityArray, TrackedPersonArray
-from geometry_msgs.msg import PointStamped, Point
+from geometry_msgs.msg import PointStamped, Point, TransformStamped
 
 import tf2_ros
 
@@ -57,13 +57,6 @@ class MultiModalHumanProvider(UwdsClient):
         self.alternate_id_map = {}
         self.last_speaking_id = ""
         self.nb_detection = {}
-        self.ros_sub = {"gaze_tracker": message_filters.Subscriber("wp2/gaze", GazeInfoArray),
-                        "voice_tracker": message_filters.Subscriber("wp2/voice", VoiceActivityArray),
-                        "person_tracker": message_filters.Subscriber("wp2/track", TrackedPersonArray),
-                        "speech_recognition" : rospy.Subscriber("speech_recognition", String, self.callback_speech)}
-
-        self.ts = message_filters.TimeSynchronizer([self.ros_sub["gaze_tracker"], self.ros_sub["voice_tracker"], self.ros_sub["person_tracker"]], 50)
-        self.ts.registerCallback(self.callback)
 
         self.previously_perceived_ids = []
         self.previously_near_ids = []
@@ -97,11 +90,18 @@ class MultiModalHumanProvider(UwdsClient):
         self.human_distances = {}
 
         self.tfBuffer = tf2_ros.Buffer()
+        self.tfBroadcaster = tf2_ros.TransformBroadcaster()
         self.listener = tf2_ros.TransformListener(self.tfBuffer)
 
         self.pepper_id = str(uuid.uuid4())
 
+        self.ros_sub = {"gaze_tracker": message_filters.Subscriber("wp2/gaze", GazeInfoArray),
+                        "voice_tracker": message_filters.Subscriber("wp2/voice", VoiceActivityArray),
+                        "person_tracker": message_filters.Subscriber("wp2/track", TrackedPersonArray),
+                        "speech_recognition" : rospy.Subscriber("speech_recognition", String, self.callback_speech)}
 
+        self.ts = message_filters.TimeSynchronizer([self.ros_sub["gaze_tracker"], self.ros_sub["voice_tracker"], self.ros_sub["person_tracker"]], 50)
+        self.ts.registerCallback(self.callback)
 
     # def handle_person(self, msg):
     #     self.person_of_interest = str(msg.data)
@@ -229,7 +229,17 @@ class MultiModalHumanProvider(UwdsClient):
 
                         self.persons[str(person.person_id)].last_observation.data = person_msg.header.stamp
                         self.changes.nodes_to_update.append(self.persons[str(person.person_id)])
-
+                        transform = TransformStamped()
+                        transform.header = person_msg.header
+                        transform.transform.translation.x = position[0]
+                        transform.transform.translation.y = position[1]
+                        transform.transform.translation.z = position[2]
+                        transform.transform.rotation.x = quaternion[0]
+                        transform.transform.rotation.y = quaternion[1]
+                        transform.transform.rotation.z = quaternion[2]
+                        transform.transform.rotation.w = quaternion[3]
+                        transform.child_frame_id = "gaze_human_"+str(person.person_id)
+                        self.tfBroadcaster.sendTransform(transform)
 
             # min_dist = 10000
             # min_id = None
