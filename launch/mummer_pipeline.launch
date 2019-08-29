@@ -9,7 +9,7 @@
 
   <param name="uwds_mummer/look_at_threshold" type="double" value="0.4" />
   <param name="uwds_mummer/engaging_distance" type="double" value="2.0" />
-  <param name="uwds_mummer/engaging_min_time" type="double" value="1.0" />
+  <param name="uwds_mummer/engaging_min_time" type="double" value="2.0" />
   <param name="uwds_mummer/nb_min_detection" type="int" value="9" />
   <param name="uwds_mummer/max_dist" type="double" value="2.5" />
   <param name="uwds_mummer/close_max_distance" type="double" value="1.0" />
@@ -40,6 +40,11 @@
     <arg name="output_world" default="robot/merged"/>
   </include>
 
+  <include file="$(find uwds_mummer_clients)/launch/area_monitor.launch">
+    <arg name="default_inputs" default="robot/merged"/>
+    <arg name="output_world" default="robot/monitored"/>
+  </include>
+
 <!--
   <include file="$(find uwds)/launch/visibility_monitor.launch">
     <arg name="default_inputs" default="robot/merged"/>
@@ -47,7 +52,7 @@
   </include>-->
 
   <include file="$(find uwds_mummer_clients)/launch/mummer_interface.launch">
-    <arg name="default_inputs" default="robot/merged"/>
+    <arg name="default_inputs" default="robot/monitored"/>
     <arg name="global_frame_id" default="map"/>
   </include>
 

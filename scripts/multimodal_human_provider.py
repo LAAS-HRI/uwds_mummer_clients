@@ -28,7 +28,7 @@ DEFAULT_ASPECT = 1.33333
 
 LOOK_AT_THRESHOLD = 0.4
 ENGAGING_DISTANCE = 2.0
-ENGAGING_MIN_TIME = 1.5
+ENGAGING_MIN_TIME = 2.5
 
 NB_MIN_DETECTION = 9
 MAX_DIST = 2.5
@@ -119,7 +119,6 @@ class MultiModalHumanProvider(UwdsClient):
         # self.person_persistence = rospy.get_param("person_persistence", PERSON_PERSISTENCE)
         #print "perception callback called"
 
-        #trans = self.tfBuffer.lookup_transform(turtle_name, 'turtle1', rospy.Time())
         self.changes = Changes()
 
         now = rospy.Time.now()

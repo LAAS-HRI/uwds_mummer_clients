@@ -10,24 +10,24 @@
   <arg name="default_inputs" default="robot/merged"/>
   <arg name="output_world" default="robot/monitored"/>
 
-  <arg name="alpha" default="0.01"/>
-  <arg name="threshold" default="0.85"/>
+  <arg name="uwds_mummer/alpha" default="0.1"/>
+  <arg name="uwds_mummer/area_threshold" default="0.70"/>
 
-  <arg name="x_min" default="8.55"/>
-  <arg name="x_max" default="17.22"/>
-  <arg name="y_min" default="4.55"/>
-  <arg name="y_max" default="13.22"/>
+  <arg name="uwds_mummer/y_min" default="8.55"/>
+  <arg name="uwds_mummer/y_max" default="17.22"/>
+  <arg name="uwds_mummer/x_min" default="4.55"/>
+  <arg name="uwds_mummer/x_max" default="13.22"/>
 
   <node pkg="uwds_mummer_clients" type="area_monitor.py" name="area_monitor" output="screen">
     <rosparam subst_value="true">
       default_inputs: $(arg default_inputs)
       output_world: $(arg output_world)
-      ~x_min: $(arg x_min)
-      ~x_max: $(arg x_max)
-      ~y_min: $(arg y_min)
-      ~y_max: $(arg y_max)
-      ~alpha: $(arg alpha)
-      ~threshold: $(arg threshold)
+      uwds_mummer/x_min: $(arg uwds_mummer/x_min)
+      uwds_mummer/x_max: $(arg uwds_mummer/x_max)
+      uwds_mummer/y_min: $(arg uwds_mummer/y_min)
+      uwds_mummer/y_max: $(arg uwds_mummer/y_max)
+      uwds_mummer/alpha: $(arg uwds_mummer/alpha)
+      uwds_mummer/area_threshold: $(arg uwds_mummer/area_threshold)
     </rosparam>
   </node>
 
