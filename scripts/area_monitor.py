@@ -73,7 +73,7 @@ class AreaMonitor(ReconfigurableClient):
             changes.nodes_to_update.append(self.ctx.worlds()[world_name].scene().nodes()[node_id])
 
         for node_id in invalidations.node_ids_deleted:
-            print("node <"+node_id+"> removed")
+            changes.nodes_to_delete.append(node_id)
             if node_id in self.is_inside_area_prob:
                 del self.is_inside_area_prob[node_id]
 
@@ -112,7 +112,6 @@ class AreaMonitor(ReconfigurableClient):
         self.previously_inside_area = self.currently_inside_area
 
         self.ctx.worlds()[self.output_world].update(changes)
-
 
     def onReconfigure(self, worlds_names):
         """
