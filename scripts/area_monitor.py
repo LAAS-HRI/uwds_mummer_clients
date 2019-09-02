@@ -30,12 +30,12 @@ IS_IN_THRESHOLD = 0.70
 
 class AreaMonitor(ReconfigurableClient):
     def __init__(self):
-        self.alpha = rospy.get_param("uwds_mummer/alpha", ALPHA)
-        self.threshold = rospy.get_param("uwds_mummer/area_threshold", IS_IN_THRESHOLD)
-        self.x_min = rospy.get_param("uwds_mummer/x_min", X_MIN)
-        self.x_max = rospy.get_param("uwds_mummer/x_max", X_MAX)
-        self.y_min = rospy.get_param("uwds_mummer/y_min", Y_MIN)
-        self.y_max = rospy.get_param("uwds_mummer/y_max", Y_MAX)
+        self.alpha = rospy.get_param("~alpha", ALPHA)
+        self.threshold = rospy.get_param("~area_threshold", IS_IN_THRESHOLD)
+        self.x_min = rospy.get_param("~x_min", X_MIN)
+        self.x_max = rospy.get_param("~x_max", X_MAX)
+        self.y_min = rospy.get_param("~y_min", Y_MIN)
+        self.y_max = rospy.get_param("~y_max", Y_MAX)
 
         self.is_inside_area_prob = {}
         self.currently_inside_area = {}
