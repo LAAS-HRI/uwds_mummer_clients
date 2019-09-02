@@ -13,10 +13,10 @@
   <arg name="uwds_mummer/alpha" default="0.1"/>
   <arg name="uwds_mummer/area_threshold" default="0.70"/>
 
-  <arg name="uwds_mummer/y_min" default="8.55"/>
-  <arg name="uwds_mummer/y_max" default="17.22"/>
-  <arg name="uwds_mummer/x_min" default="4.55"/>
-  <arg name="uwds_mummer/x_max" default="13.22"/>
+  <arg name="uwds_mummer/y_min" default="7.658"/>
+  <arg name="uwds_mummer/y_max" default="11.657"/>
+  <arg name="uwds_mummer/x_min" default="25.22"/>
+  <arg name="uwds_mummer/x_max" default="30.31"/>
 
   <node pkg="uwds_mummer_clients" type="area_monitor.py" name="area_monitor" output="screen">
     <rosparam subst_value="true">
