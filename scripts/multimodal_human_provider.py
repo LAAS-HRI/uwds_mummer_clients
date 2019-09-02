@@ -284,8 +284,9 @@ class MultiModalHumanProvider(UwdsClient):
                 for person2_id in self.last_engagement_time[person_id]:
                     if person_id+"isEngagingWith"+person2_id in self.predicates_map:
                         fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[person_id+"isEngagingWith"+person2_id]]
-                        if (now - fact.start.data).to_sec() > self.engaging_min_time:
-                            self.currently_engaged_with[person_id] = person2_id
+                        if fact is not None:
+                            if (now - fact.start.data).to_sec() > self.engaging_min_time:
+                                self.currently_engaged_with[person_id] = person2_id
                     else:
                         if person_id+"isEngagedWith"+person2_id in self.predicates_map:
                             if (now - self.last_engagement_time[person_id][person2_id]).to_sec() < self.min_engagement_duration:
