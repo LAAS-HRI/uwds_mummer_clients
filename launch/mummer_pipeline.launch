@@ -21,17 +21,8 @@
   <!--<include file="$(find uwds_mummer_clients)/launch/fake_localization.launch"/>-->
   <include file="$(find uwds_mummer_clients)/launch/pepper_utils.launch"/>
 
-
-
-
   <!-- UWDS PIPELINE -->
-  <include file="$(find uwds)/launch/env_provider.launch">
-    <arg name="output_world" default="robot/env"/>
-    <!--<arg name="filename" default="$(find ideapark_description)/models/env/ideapark_24june.blend"/>-->
-    <arg name="filename" default="$(find ideapark_description)/models/env/ideapark_2sept.blend"/>
-  </include>
-
-  <include file="$(find ideapark_description)/launch/not_visible_static_entities.launch"/>
+  <include file="$(find uwds_mummer_clients)/launch/ideapark_provider.launch"/>
 
   <include file="$(find uwds_mummer_clients)/launch/multimodal_human_provider.launch">
     <arg name="output_world" default="robot/humans"/>
