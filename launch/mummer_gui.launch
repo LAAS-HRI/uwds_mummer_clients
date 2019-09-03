@@ -1,4 +1,13 @@
 <?xml version="1.0"?>
 <launch>
 
+  <!-- GUI RELATED -->
+  <include file="$(find uwds)/launch/scene_viewer.launch">
+    <arg name="default_inputs" default="robot/monitored"/>
+  </include>
+
+  <include file="$(find uwds)/launch/timeline_viewer.launch">
+    <arg name="default_inputs" default="robot/monitored"/>
+  </include>
+
 </launch>

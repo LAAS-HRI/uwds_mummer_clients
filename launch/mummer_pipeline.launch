@@ -22,7 +22,7 @@
   <include file="$(find uwds_mummer_clients)/launch/pepper_utils.launch"/>
 
   <!-- UWDS PIPELINE -->
-  <include file="$(find uwds_mummer_clients)/launch/ideapark_provider.launch"/>
+  <!--<include file="$(find uwds_mummer_clients)/launch/ideapark_provider.launch"/>-->
 
   <include file="$(find uwds_mummer_clients)/launch/multimodal_human_provider.launch">
     <arg name="output_world" default="robot/humans"/>
@@ -48,8 +48,6 @@
     <arg name="default_inputs" default="robot/monitored"/>
     <arg name="global_frame_id" default="map"/>
   </include>
-
-
 
   <!-- GUI RELATED
   <include file="$(find uwds)/launch/scene_viewer.launch">

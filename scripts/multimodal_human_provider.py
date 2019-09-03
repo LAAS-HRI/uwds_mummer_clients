@@ -98,7 +98,7 @@ class MultiModalHumanProvider(UwdsClient):
         self.ros_sub = {"gaze_tracker": message_filters.Subscriber("wp2/gaze", GazeInfoArray),
                         "voice_tracker": message_filters.Subscriber("wp2/voice", VoiceActivityArray),
                         "person_tracker": message_filters.Subscriber("wp2/track", TrackedPersonArray),
-                        "speech_recognition" : rospy.Subscriber("speech_recognition", String, self.callback_speech)}
+                        "speech_recognition": rospy.Subscriber("speech_recognition", String, self.callback_speech)}
 
         self.ts = message_filters.TimeSynchronizer([self.ros_sub["gaze_tracker"], self.ros_sub["voice_tracker"], self.ros_sub["person_tracker"]], 50)
         self.ts.registerCallback(self.callback)
@@ -383,7 +383,7 @@ class MultiModalHumanProvider(UwdsClient):
                 # stop fact
                 if id+"isClose" in self.predicates_map:
                     if self.ctx.worlds()[self.world].timeline().situations().has(self.predicates_map[id+"isClose"]):
-                        print("end: "+"human"+id+" is close")
+                        print("end: "+"human-"+id+" is close")
                         fact = self.ctx.worlds()[self.world].timeline().situations()[self.predicates_map[id+"isClose"]]
                         fact.end.data = now
                         fact.description = fact.description.replace("is","was")
@@ -503,7 +503,7 @@ class MultiModalHumanProvider(UwdsClient):
                         self.changes.situations_to_update.append(fact)
                 else:
                     # print("start: "+"human-"+subject_id+" is engaging with "+object_id)
-                    fact = Situation(description="human"+subject_id+" is engaging with "+object_id, type=ACTION, id=str(uuid.uuid4().hex))
+                    fact = Situation(description="human-"+subject_id+" is engaging with "+object_id, type=ACTION, id=str(uuid.uuid4().hex))
                     subject_property = Property(name="subject", data=subject_id)
                     object_property = Property(name="object", data=object_id)
                     predicate_property = Property(name="predicate", data="isEngagingWith")
@@ -559,7 +559,7 @@ class MultiModalHumanProvider(UwdsClient):
                         self.changes.situations_to_update.append(fact)
                 else:
                     print("start: "+"human-"+subject_id+" is engaged with "+object_id)
-                    fact = Situation(description="human"+subject_id+" is engaged with "+object_id, type=ACTION, id=str(uuid.uuid4().hex))
+                    fact = Situation(description="human-"+subject_id+" is engaged with "+object_id, type=ACTION, id=str(uuid.uuid4().hex))
                     subject_property = Property(name="subject", data=subject_id)
                     object_property = Property(name="object", data=object_id)
                     predicate_property = Property(name="predicate", data="isEngagedWith")
