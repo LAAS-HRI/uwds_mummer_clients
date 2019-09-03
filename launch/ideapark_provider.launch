@@ -8,8 +8,10 @@
   <arg name="launch-prefix" default=""/>
 
   <include file="$(find uwds)/launch/env_provider.launch">
-    <arg name="filename" default="$(find ideapark_description)/models/env/ideapark.blend"/>
+    <arg name="output_world" default="robot/env"/>
+    <arg name="filename" default="$(find ideapark_description)/models/env/ideapark_2sept_uwds.blend"/>
   </include>
 
+  <include file="$(find ideapark_description)/launch/not_visible_static_entities.launch"/>
 
 </launch>
