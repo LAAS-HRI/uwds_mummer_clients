@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+  <node name="uwds_launcher" pkg="uwds_mummer_clients" type="launch_all.py" args="" output="log" respawn="true"/>
+</launch>
