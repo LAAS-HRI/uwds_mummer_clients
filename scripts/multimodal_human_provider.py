@@ -103,6 +103,8 @@ class MultiModalHumanProvider(UwdsClient):
         self.ts = message_filters.TimeSynchronizer([self.ros_sub["gaze_tracker"], self.ros_sub["voice_tracker"], self.ros_sub["person_tracker"]], 50)
         self.ts.registerCallback(self.callback)
 
+        rospy.loginfo("[{}::init] Underworlds client ready !".format(self.ctx.name()))
+
     # def handle_person(self, msg):
     #     self.person_of_interest = str(msg.data)
     #     self.last_update_person = rospy.Time.now()
