@@ -15,7 +15,7 @@
   <param name="uwds_mummer/close_max_distance" type="double" value="1.0" />
   <param name="uwds_mummer/near_max_distance" type="double" value="2.0" />
   <param name="uwds_mummer/min_engagement_duration" type="double" value="10.0"/>
-  <param name="uwds_mummer/person_persistence" type="double" value="12.0" />
+  <param name="uwds_mummer/person_persistence" type="double" value="6.0" />
 
   <!-- FAKE LOCALIZATION + PEPPER RELATED -->
   <!--<include file="$(find uwds_mummer_clients)/launch/fake_localization.launch"/>-->
