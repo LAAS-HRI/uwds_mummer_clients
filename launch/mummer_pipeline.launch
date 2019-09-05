@@ -34,20 +34,8 @@
   </include>
 
   <include file="$(find uwds_mummer_clients)/launch/area_monitor.launch">
-    <arg name="default_inputs" default="robot/merged_visibilities"/>
-    <arg name="output_world" default="robot/monitored"/>
-  </include>
-
-  <include file="$(find uwds_mummer_clients)/launch/visibility_monitor.launch">
     <arg name="default_inputs" default="robot/merged"/>
-    <arg name="ressource_folder" default="$(find ideapark_description)/models/objects/"/>
-    <arg name="use_gui" default="false"/>
-  </include>
-
-  <group if="$(arg record)">
-    <include file="$(find uwds_mummer_clients)/launch/mummer_record.launch">
-  </group>
-
+    <arg name="output_world" default="robot/monitored"/>
   </include>
 
   <include file="$(find uwds_mummer_clients)/launch/mummer_interface.launch">
