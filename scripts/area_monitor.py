@@ -72,6 +72,12 @@ class AreaMonitor(ReconfigurableClient):
         for node_id in invalidations.node_ids_updated:
             changes.nodes_to_update.append(self.ctx.worlds()[world_name].scene().nodes()[node_id])
 
+        for mesh_id in invalidations.mesh_ids_updated:
+            changes.meshes_to_update.append(self.ctx.worlds()[world_name].meshes()[mesh_id])
+
+        for mesh_id in invalidations.mesh_ids_deleted:
+            changes.meshes_to_delete.append(mesh_id)
+
         for node_id in invalidations.node_ids_deleted:
             changes.nodes_to_delete.append(node_id)
             if node_id in self.is_inside_area_prob:
@@ -87,7 +93,7 @@ class AreaMonitor(ReconfigurableClient):
                     if fact is not None:
                         print("stop : human-"+node_id+" is inside area "+ self.previously_inside_area[node_id])
                         fact.end.data = now
-                        changes.situations_to_update.append(fact)
+                        changes.situations_to_delete.append(fact_id)
                         del self.predicates_map[node_id+"isInsideArea"+self.previously_inside_area[node_id]]
 
         for node in self.ctx.worlds()[world_name].scene().nodes():

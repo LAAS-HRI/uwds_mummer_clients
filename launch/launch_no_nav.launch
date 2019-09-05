@@ -1,4 +1,0 @@
-<?xml version="1.0"?>
-<launch>
-  <node name="uwds_launcher" pkg="uwds_mummer_clients" type="launch_no_nav.py" args="" output="screen" respawn="true"/>
-</launch>

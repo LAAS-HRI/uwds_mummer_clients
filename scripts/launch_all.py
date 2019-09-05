@@ -20,10 +20,7 @@ class Launcher(object):
         time.sleep(waiting_time)
         self.env_thread = Thread(target=self.launch_env, args=[None])
         self.env_thread.start()
-        rospy.loginfo("Environment loaded, waiting to launch the navigation...")
-        time.sleep(waiting_time)
-        self.nav_thread = Thread(target=self.launch_nav, args=[None])
-        self.nav_thread.start()
+        rospy.loginfo("Environment loaded... setup finished")
         signal(SIGINT, self.kill_them_all)
         self.run()
 
@@ -36,25 +33,20 @@ class Launcher(object):
     def launch_env(self, arg):
         self.p3 = subprocess.Popen(['xterm', '-e', 'roslaunch uwds_mummer_clients ideapark_provider.launch'])
 
-    def launch_nav(self, arg):
-        self.p4 = subprocess.Popen(['xterm', '-e', 'roslaunch uwds_mummer_clients navigation.launch'])
-
     def kill_them_all(self, signal_received, frame):
         rospy.loginfo("\n\rSIGINT or CTRL-C detected. Killing threads...")
         self.p1.send_signal(SIGINT)
         self.p2.send_signal(SIGINT)
         self.p3.send_signal(SIGINT)
-        self.p4.send_signal(SIGINT)
         self.server_thread.join()
         self.pipeline_thread.join()
         self.env_thread.join()
-        self.nav_thread.join()
-        rospy.loginfo("Threads killed, exiting properly.")
+        rospy.loginfo("Threads killed, exiting !")
         exit(0)
 
     def run(self):
         while True:
-            time.sleep(0.1)
+            time.sleep(2.0)
 
 if __name__ == '__main__':
     rospy.init_node("Underworlds launcher")

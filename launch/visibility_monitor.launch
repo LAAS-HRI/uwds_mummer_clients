@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="output" default="screen"/>
+  <arg name="respawn" default="false"/>
+  <arg name="start_manager" default="false"/>
+  <arg name="start_server" default="false"/>
+  <arg name="nodelet_manager" default=""/>
+  <arg name="launch-prefix" default=""/>
+
+  <arg name="default_inputs" default="robot/monitored"/>
+  <arg name="ressource_folder" default="$(find ideapark_description)/models/objects/"/>
+  <arg name="use_gui" default="true"/>
+
+  <node name="uwds_server"
+        pkg="nodelet" type="nodelet"
+        args="load uwds/UwdsServerNodelet $(arg nodelet_manager)"
+        respawn="$(arg respawn)"
+        output="$(arg output)"
+        launch-prefix="$(arg launch-prefix)"
+        if="$(arg start_server)"/>
+
+  <node name="visibility_monitor"
+        pkg="uwds_mummer_clients" type="visibility_monitor.py"
+        respawn="$(arg respawn)"
+        output="$(arg output)"
+        launch-prefix="$(arg launch-prefix)">
+    <rosparam subst_value="true">
+      default_inputs: $(arg default_inputs)
+      ressource_folder: $(arg ressource_folder)
+      verbose : false
+      use_gui : $(arg use_gui)
+    </rosparam>
+  </node>
+</launch>

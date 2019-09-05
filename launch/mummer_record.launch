@@ -1,7 +1,5 @@
 <?xml version="1.0"?>
 <launch>
-
   <node pkg="rosbag" type="record" name="rosbag_record_uwds"
-        args="record -o /robot/monitored/changes"/>
-
+        args="record -o uwds -e '(.*)changes(.*)'"/>
 </launch>
