@@ -17,6 +17,9 @@
   <param name="uwds_mummer/min_engagement_duration" type="double" value="10.0"/>
   <param name="uwds_mummer/person_persistence" type="double" value="6.0" />
 
+  <arg name="record" default="false"/>
+
+
   <!-- FAKE LOCALIZATION + PEPPER RELATED -->
   <!--<include file="$(find uwds_mummer_clients)/launch/pepper_utils.launch"/>-->
 
@@ -36,12 +39,17 @@
     <arg name="output_world" default="robot/monitored"/>
   </include>
 
-<!--
-  <include file="$(find uwds)/launch/visibility_monitor.launch">
+  <include file="$(find uwds_mummer_clients)/launch/visibility_monitor.launch">
     <arg name="default_inputs" default="robot/merged"/>
     <arg name="ressource_folder" default="$(find ideapark_description)/models/objects/"/>
-    <arg name="use_gui" default="true"/>
-  </include>-->
+    <arg name="use_gui" default="false"/>
+  </include>
+
+  <group if="$(arg record)">
+    <include file="$(find uwds_mummer_clients)/launch/mummer_record.launch">
+  </group>
+
+  </include>
 
   <include file="$(find uwds_mummer_clients)/launch/mummer_interface.launch">
     <arg name="default_inputs" default="robot/monitored"/>

@@ -16,14 +16,14 @@ class MummerInterface(ReconfigurableClient):
     def __init__(self):
         self.start = False
         super(MummerInterface, self).__init__("mummer_interface", READER)
-        #self.input_world = ""
+
         self._pub = rospy.Publisher('base/current_facts', FactArrayStamped, queue_size=10)
 
         self._has_mesh_srv = rospy.Service("has_mesh", HasMesh, self.handleHasMesh)
         self._get_name = rospy.Service("get_name", GetName, self.handleGetName)
 
         self._tf_broadcaster = tf2_ros.TransformBroadcaster()
-        self._timer = rospy.Timer(rospy.Duration(1/30.0), self.handleTimer)
+        self._timer = rospy.Timer(rospy.Duration(1/10.0), self.handleTimer)
 
         self.start = True
 
