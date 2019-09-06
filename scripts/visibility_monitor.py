@@ -4,12 +4,9 @@
 import rospy
 import math
 import uuid
-import numpy
 import pybullet as p
-import pybullet_data
 from pyuwds.reconfigurable_client import ReconfigurableClient
 from uwds_msgs.msg import Changes, Situation, Property
-from std_msgs.msg import Header
 from pyuwds.types.nodes import MESH, CAMERA
 from pyuwds.types.situations import FACT
 from pyuwds.uwds import FILTER
@@ -32,6 +29,7 @@ class VisibilityMonitor(ReconfigurableClient):
         self.min_treshold = rospy.get_param("~min_treshold", 0.4)
         self.width = rospy.get_param("~width", 480/8)
         self.height = rospy.get_param("~height", 360/8)
+        self.output_world = rospy.get_param("~output_world", "robot/visibilities")
         self.visibilities_situations = {}
         super(VisibilityMonitor, self).__init__("visibility_monitor", FILTER)
 
@@ -57,7 +55,7 @@ class VisibilityMonitor(ReconfigurableClient):
         changes = self.monitor(world_name, header, invalidations)
         if changes is not None:
             if len(changes.nodes_to_update) > 0 or len(changes.nodes_to_delete) > 0 or len(changes.situations_to_update) > 0 or len(changes.situations_to_delete) > 0:
-                self.ctx.worlds()[world_name+"_visibilities"].update(changes, header)
+                self.ctx.worlds()[self.output_world].update(changes, header)
 
     def monitor(self, world_name, header, invalidations):
         """
@@ -83,6 +81,12 @@ class VisibilityMonitor(ReconfigurableClient):
 
         for sit_id in invalidations.situation_ids_deleted:
             changes.situations_to_delete.append(sit_id)
+
+        for mesh_id in invalidations.mesh_ids_updated:
+            changes.meshes_to_update.append(self.ctx.worlds()[world_name].meshes()[mesh_id])
+
+        for mesh_id in invalidations.mesh_ids_deleted:
+            changes.meshes_to_delete.append(mesh_id)
 
         #self.ctx.worlds()[world_name].timeline().update(changes.situations_to_update)
         #self.ctx.worlds()[world_name].timeline().remove(changes.situations_to_delete)
@@ -183,7 +187,7 @@ class VisibilityMonitor(ReconfigurableClient):
                         background_nb_pixel += 1.0
 
             if len(mean_distances_from_center) > 0:
-                #print "camera <%s> :" % self.ctx.worlds()[world_name].scene().nodes()[camera_id].name
+                print "camera <%s> :" % self.ctx.worlds()[world_name].scene().nodes()[camera_id].name
                 for node_id, mean_dist in mean_distances_from_center.items():
                     mean_distances_from_center[node_id] = mean_dist / nb_pixel[node_id]
                     camera_node = self.ctx.worlds()[world_name].scene().nodes()[camera_id]
@@ -194,7 +198,7 @@ class VisibilityMonitor(ReconfigurableClient):
                         visibilities[node_id] = 0
                     if visibilities[node_id] > self.min_treshold:
                         pass
-                        #print " - see object <%s> with %5f confidence" % (object_node.name, visibilities[node_id])
+                        print " - see object <%s> with %5f confidence" % (object_node.name, visibilities[node_id])
                     else:
                         del visibilities[node_id]
         return visibilities

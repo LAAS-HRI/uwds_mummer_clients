@@ -88,13 +88,13 @@ class AreaMonitor(ReconfigurableClient):
 
             if node_id in self.currently_inside_area:
                 if node_id+"isInsideArea"+self.previously_inside_area[node_id] in self.predicates_map:
-                    fact_id = self.predicates_map[node_id+"isInsideArea"+self.previously_inside_area[node_id]]
-                    fact = self.ctx.worlds()[self.output_world].timeline().situations()[fact_id]
-                    if fact is not None:
-                        print("stop : human-"+node_id+" is inside area "+ self.previously_inside_area[node_id])
-                        fact.end.data = now
-                        changes.situations_to_delete.append(fact_id)
-                        del self.predicates_map[node_id+"isInsideArea"+self.previously_inside_area[node_id]]
+                    fact = self.predicates_map[node_id+"isInsideArea"+self.previously_inside_area[node_id]]
+                    print("stop : human-"+node_id+" is inside area "+ self.previously_inside_area[node_id])
+                    fact.end.data = now
+                    changes.situations_to_update.append(fact)
+                    #changes.situations_to_delete.append(fact_id)
+                    del self.predicates_map[node_id+"isInsideArea"+self.previously_inside_area[node_id]]
+
 
         for node in self.ctx.worlds()[world_name].scene().nodes():
             if self.ctx.worlds()[world_name].scene().nodes().get_node_property(node.id, "class") == "Human":
@@ -112,18 +112,18 @@ class AreaMonitor(ReconfigurableClient):
                     fact.properties.append(subject_property)
                     fact.properties.append(object_property)
                     fact.properties.append(predicate_property)
-                    self.predicates_map[node.id+"isInsideArea"+area] = fact.id
+                    self.predicates_map[node.id+"isInsideArea"+area] = fact
                     changes.situations_to_update.append(fact)
 
                 if node.id in self.previously_inside_area and node.id not in self.currently_inside_area:
                     if node.id+"isInsideArea"+self.previously_inside_area[node.id] in self.predicates_map:
-                        fact_id = self.predicates_map[node.id+"isInsideArea"+self.previously_inside_area[node.id]]
-                        fact = self.ctx.worlds()[self.output_world].timeline().situations()[fact_id]
-                        if fact is not None:
-                            print("stop : human-"+node.id+" is inside area "+ self.previously_inside_area[node.id])
-                            fact.end.data = now
-                            changes.situations_to_update.append(fact)
-                            del self.predicates_map[node.id+"isInsideArea"+self.previously_inside_area[node.id]]
+                        fact = self.predicates_map[node.id+"isInsideArea"+self.previously_inside_area[node.id]]
+                        #fact = self.ctx.worlds()[self.output_world].timeline().situations()[fact_id]
+                        #if fact is not None:
+                        print("stop : human-"+node.id+" is inside area "+ self.previously_inside_area[node.id])
+                        fact.end.data = now
+                        changes.situations_to_update.append(fact)
+                        del self.predicates_map[node.id+"isInsideArea"+self.previously_inside_area[node.id]]
 
         self.previously_inside_area = self.currently_inside_area
 

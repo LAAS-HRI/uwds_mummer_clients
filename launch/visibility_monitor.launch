@@ -8,8 +8,9 @@
   <arg name="launch-prefix" default=""/>
 
   <arg name="default_inputs" default="robot/monitored"/>
+  <arg name="output_world" default="robot/visibilities"/>
   <arg name="ressource_folder" default="$(find ideapark_description)/models/objects/"/>
-  <arg name="use_gui" default="true"/>
+  <arg name="use_gui" default="false"/>
 
   <node name="uwds_server"
         pkg="nodelet" type="nodelet"
@@ -29,6 +30,7 @@
       ressource_folder: $(arg ressource_folder)
       verbose : false
       use_gui : $(arg use_gui)
+      output_world : $(arg output_world)
     </rosparam>
   </node>
 </launch>
