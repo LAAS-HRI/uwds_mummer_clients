@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="output" default="screen"/>
+  <arg name="respawn" default="false"/>
+  <arg name="start_manager" default="true"/>
+  <arg name="start_server" default="false"/>
+  <arg name="nodelet_manager" default="mummer_nodelet_manager"/>
+  <arg name="launch-prefix" default=""/>
+
+  <param name="uwds_mummer/look_at_threshold" type="double" value="0.4" />
+  <param name="uwds_mummer/engaging_distance" type="double" value="2.0" />
+  <param name="uwds_mummer/engaging_min_time" type="double" value="2.0" />
+  <param name="uwds_mummer/nb_min_detection" type="int" value="9" />
+  <param name="uwds_mummer/max_dist" type="double" value="2.5" />
+  <param name="uwds_mummer/close_max_distance" type="double" value="1.0" />
+  <param name="uwds_mummer/near_max_distance" type="double" value="2.0" />
+  <param name="uwds_mummer/min_engagement_duration" type="double" value="10.0"/>
+  <param name="uwds_mummer/person_persistence" type="double" value="6.0" />
+
+  <arg name="record" default="false"/>
+  <arg name="visibilities" default="false"/>
+
+  <include file="$(find uwds_mummer_clients)/launch/multimodal_human_provider.launch">
+    <arg name="output_world" default="robot/humans"/>
+  </include>
+
+  <include file="$(find uwds)/launch/world_merger.launch">
+    <arg name="default_inputs" default="robot/env robot/humans"/>
+    <arg name="output_world" default="robot/merged"/>
+  </include>
+
+  <include file="$(find uwds_mummer_clients)/launch/area_monitor.launch">
+    <arg name="default_inputs" default="robot/merged"/>
+    <arg name="output_world" default="robot/monitored"/>
+    <arg name="x_min" default="8.55"/>
+    <arg name="x_max" default="17.22"/>
+    <arg name="y_min" default="4.55"/>
+    <arg name="y_max" default="13.22"/>
+  </include>
+
+  <group if="$(eval arg('visibilities') ==true)">
+    <include file="$(find uwds_mummer_clients)/launch/visibility_monitor.launch">
+      <arg name="default_inputs" default="robot/monitored"/>
+      <arg name="output_world" default="robot/visibilities"/>
+    </include>
+
+    <include file="$(find uwds_mummer_clients)/launch/mummer_interface.launch">
+      <arg name="default_inputs" default="robot/visibilities"/>
+      <arg name="global_frame_id" default="map"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('visibilities') ==false)">
+    <include file="$(find uwds_mummer_clients)/launch/mummer_interface.launch">
+      <arg name="default_inputs" default="robot/monitored"/>
+      <arg name="global_frame_id" default="map"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('record') ==true)">
+    <include file="$(find uwds_mummer_clients)/launch/mummer_record.launch"/>
+  </group>
+
+</launch>

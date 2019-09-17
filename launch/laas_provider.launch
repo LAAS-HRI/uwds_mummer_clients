@@ -4,11 +4,11 @@
   <arg name="respawn" default="false"/>
   <arg name="start_manager" default="true"/>
   <arg name="start_server" default="false"/>
-  <arg name="nodelet_manager" default="gazes_nodelet_manager"/>
+  <arg name="nodelet_manager" default="uwds_nodelet_manager"/>
   <arg name="launch-prefix" default=""/>
 
   <include file="$(find uwds)/launch/env_provider.launch">
-    <arg name="filename" default="$(find ideapark_description)/models/env/ideapark.blend"/>
+    <arg name="filename" default="$(find laas_objects)/res/blend/laas_adream_mummer.blend"/>
   </include>
 
 
